@@ -1,0 +1,4265 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CYBER-LUBE // 重載 L2 軋機數位孿生監控系統 (HR2 / HR3 / CR5 多子油箱全息版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Three.js OrbitControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@600;800;900&family=Share+Tech+Mono&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+    :root {
+      --neon-cyan: #00f0ff;
+      --neon-pink: #ff0055;
+      --neon-amber: #ffb800;
+      --neon-green: #10b981;
+      --neon-purple: #a855f7;
+      --bg-base: #030712;
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      background-color: var(--bg-base);
+      color: #f8fafc;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    .font-cyber { font-family: 'Orbitron', monospace; }
+    .font-mono-tech { font-family: 'Share Tech Mono', monospace; }
+
+    .ambient-bg-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background: 
+        radial-gradient(circle at 15% 10%, rgba(0, 240, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(255, 0, 85, 0.07) 0%, transparent 40%),
+        radial-gradient(circle at 45% 40%, rgba(255, 184, 0, 0.05) 0%, transparent 35%);
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+      border-radius: 20px;
+      position: relative;
+    }
+
+    /* 欄位框懸停放大浮凸特效 (Lift & Pop-out) */
+    .glass-card-interactive {
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), 
+                  box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), 
+                  border-color 0.28s ease,
+                  background-color 0.28s ease;
+      will-change: transform, box-shadow;
+    }
+    .glass-card-interactive:hover {
+      transform: translateY(-5px) scale(1.012);
+      border-color: rgba(0, 240, 255, 0.45);
+      background: rgba(17, 26, 48, 0.94);
+      box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.8),
+                  0 0 24px -4px rgba(0, 240, 255, 0.22);
+      z-index: 30;
+    }
+
+    .glass-icon-badge {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-glass {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      cursor: pointer;
+      position: relative;
+      z-index: 20;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .btn-glass:hover {
+      background: rgba(255, 255, 255, 0.18);
+      border-color: rgba(0, 240, 255, 0.6);
+      color: #00f0ff;
+    }
+
+    .btn-glass-primary {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.45) 0%, rgba(14, 116, 144, 0.6) 100%);
+      border: 1px solid rgba(0, 240, 255, 0.7);
+      border-radius: 12px;
+      cursor: pointer;
+      position: relative;
+      z-index: 20;
+      transition: background 0.15s ease;
+    }
+    .btn-glass-primary:hover {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.75) 0%, rgba(14, 116, 144, 0.85) 100%);
+      color: #ffffff;
+    }
+
+    .filter-chip {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 0.35rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-family: 'Share Tech Mono', monospace;
+      cursor: pointer;
+      position: relative;
+      z-index: 20;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .filter-chip:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(0, 240, 255, 0.5);
+    }
+    .filter-chip.active {
+      background: rgba(0, 240, 255, 0.3);
+      border-color: var(--neon-cyan);
+      color: var(--neon-cyan);
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+      font-weight: 700;
+    }
+
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: none;
+    }
+    .toast-box {
+      background: rgba(15, 23, 42, 0.98);
+      border: 1px solid rgba(0, 240, 255, 0.5);
+      padding: 12px 18px;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 9000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-backdrop.active {
+      display: flex !important;
+    }
+
+    .table-row-selected {
+      background: rgba(0, 240, 255, 0.15) !important;
+      border-left: 3px solid var(--neon-cyan);
+    }
+
+    /* GitHub 風格熱力圖單元格樣式 */
+    .heatmap-cell {
+      width: 13px;
+      height: 13px;
+      border-radius: 3px;
+      transition: transform 0.1s ease, outline 0.1s ease;
+      cursor: pointer;
+    }
+    .heatmap-cell:hover {
+      transform: scale(1.35);
+      z-index: 30;
+      outline: 1.5px solid #00f0ff;
+    }
+
+    /* 自訂滾動條 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 240, 255, 0.5);
+    }
+  </style>
+</head>
+<body class="p-3 md:p-6 flex flex-col justify-between select-none">
+
+  <!-- 靜態輕量光暈 -->
+  <div class="ambient-bg-glow"></div>
+
+  <!-- Toast 浮動通知容器 -->
+  <div id="toast-container"></div>
+
+  <!-- 頂部導覽列 -->
+  <header class="glass-card p-4 md:px-6 mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 z-20 relative">
+    <div class="flex items-center gap-4">
+      <div class="glass-icon-badge w-12 h-12 border-cyan-400/30 text-cyan-400">
+        <i data-lucide="factory" class="w-6 h-6 animate-pulse"></i>
+      </div>
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-xl md:text-2xl font-black font-cyber tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-slate-100 to-pink-400">
+            CSAC L2 ROLLING MILL-I // CYBER_OIL_DASHBOARD
+          </h1>
+          <span class="text-[11px] font-mono-tech px-3 py-0.5 bg-white/5 border border-white/15 text-amber-400 rounded-full font-semibold uppercase tracking-wider">
+            多子油箱分拆統計 (HR2 / HR3 / CR5)
+          </span>
+        </div>
+        <p class="text-xs font-mono-tech text-slate-300 mt-1 flex items-center gap-2 flex-wrap">
+          <span class="text-cyan-400">油品標準：</span> Super 46AWS / ISO 46 // 
+          <span id="sync-status" class="text-emerald-400 flex items-center gap-1.5 font-medium">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 雲端試算表連線正常 (即時同步中)
+          </span>
+        </p>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2.5">
+      <button onclick="reset3DCamera()" class="btn-glass px-3.5 py-2 text-xs md:text-sm text-cyan-300 flex items-center gap-2" title="還原至全景視野">
+        <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="camera" class="w-3.5 h-3.5 text-cyan-400"></i></div>
+        視角重設
+      </button>
+      <button onclick="openServerConfigModal()" class="btn-glass px-3.5 py-2 text-xs md:text-sm text-cyan-300 flex items-center gap-2">
+        <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="link" class="w-3.5 h-3.5"></i></div>
+        試算表網址設定
+      </button>
+      <button onclick="fetchRecordsFromBackend()" class="btn-glass px-3.5 py-2 text-xs md:text-sm text-slate-200 flex items-center gap-2">
+        <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-cyan-400"></i></div>
+        手動同步
+      </button>
+      <button onclick="openThresholdModal()" class="btn-glass px-3.5 py-2 text-xs md:text-sm text-cyan-300 flex items-center gap-2">
+        <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="sliders" class="w-3.5 h-3.5"></i></div>
+        門檻設定
+      </button>
+      <button onclick="exportCSV()" class="btn-glass px-3.5 py-2 text-xs md:text-sm text-slate-200 flex items-center gap-2">
+        <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="download" class="w-3.5 h-3.5"></i></div>
+        匯出報表
+      </button>
+      <button onclick="openAddModal()" class="btn-glass-primary px-4 py-2 text-xs md:text-sm text-white font-bold flex items-center gap-2">
+        <div class="glass-icon-badge w-6 h-6 border-white/20"><i data-lucide="plus" class="w-3.5 h-3.5"></i></div>
+        新增補油紀錄
+      </button>
+    </div>
+  </header>
+
+  <!-- 3D 舞台與機組月限額防禦監控卡 -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6 z-10 relative">
+    
+    <!-- 3D 舞台區塊 (加入懸停浮凸放大) -->
+    <div class="glass-card glass-card-interactive lg:col-span-2 p-5 flex flex-col justify-between relative overflow-hidden" id="canvas-card">
+      <div class="flex items-center justify-between z-10 mb-2">
+        <div>
+          <div class="text-xs font-cyber tracking-widest text-amber-400 flex items-center gap-2">
+            <div class="glass-icon-badge w-6 h-6 border-amber-400/30"><i data-lucide="layers" class="w-3.5 h-3.5 text-amber-400"></i></div>
+            HR2 4-Hi 4重粗軋機 ｜ HR3 4-Stand 精軋 ｜ CR5 冷軋機 (全息多油箱數位孿生)
+          </div>
+          <p class="text-[11px] font-mono-tech text-slate-300 mt-1">
+            [操作指南] <span class="text-cyan-300 font-bold">左鍵拖曳</span>旋轉 ｜ <span class="text-cyan-300 font-bold">右鍵拖曳</span>平移 ｜ <span class="text-cyan-300 font-bold">滾輪</span>縮放 ｜ <span class="text-amber-300 font-bold">點擊機台</span>聯動快篩 ｜ <span class="text-pink-400 font-bold">雙擊空白</span>視角重設
+          </p>
+        </div>
+        <div id="three-alert-badge" class="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-xs font-mono-tech text-cyan-300 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span> 全息廠區沙盤：監控中
+        </div>
+      </div>
+
+      <!-- 3D Canvas 容器 -->
+      <div id="three-container" class="w-full h-80 md:h-[500px] relative cursor-grab active:cursor-grabbing rounded-2xl overflow-hidden bg-slate-950/70 border border-white/5">
+        <div id="tooltip-3d" class="absolute pointer-events-none opacity-0 transition-opacity duration-150 bg-slate-900/95 border border-white/20 p-3.5 rounded-2xl shadow-xl text-xs font-mono-tech z-30 min-w-[260px]">
+          <div class="flex items-center justify-between border-b border-white/10 pb-1.5 mb-2">
+            <span id="tooltip-title" class="font-cyber font-bold text-white text-sm">--</span>
+            <span id="tooltip-tag" class="text-[10px] px-2.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-bold border border-pink-400/30">PLANT ZONE</span>
+          </div>
+          <div id="tooltip-vol" class="text-cyan-300 text-xs mb-1">當月加油: 0 L</div>
+          <div id="tooltip-height" class="text-slate-300 text-[10px]">儲槽真實油位: 0 L</div>
+          <div id="tooltip-details" class="text-[10px] text-amber-300/90 border-t border-white/5 pt-1 mt-1 hidden"></div>
+          <div id="tooltip-status" class="text-[10px] mt-1 font-bold">狀態: 正常</div>
+        </div>
+
+        <div class="absolute bottom-3 left-3 flex flex-wrap items-center gap-4 text-[11px] font-mono-tech pointer-events-none z-10 bg-slate-900/80 px-4 py-2 rounded-xl border border-white/10 shadow-lg">
+          <span class="flex items-center gap-1.5 text-amber-400 font-bold"><span class="w-2.5 h-2.5 rounded-full bg-[#ffb800]"></span> HR2 (4油箱)</span>
+          <span class="flex items-center gap-1.5 text-pink-500 font-bold"><span class="w-2.5 h-2.5 rounded-full bg-[#ff0055]"></span> HR3 (AUX / Push-UP)</span>
+          <span class="flex items-center gap-1.5 text-emerald-400 font-bold"><span class="w-2.5 h-2.5 rounded-full bg-[#10b981]"></span> CR5 (AGC / BENDING / 中壓)</span>
+          <span class="flex items-center gap-1.5 text-slate-300"><span class="w-2.5 h-2.5 rounded-full bg-cyan-300 animate-pulse"></span> 阻尼緩動旋轉</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 月限額防禦監控卡 (HR2, HR3, CR5 全子油箱獨立條) (加入懸停浮凸放大) -->
+    <div class="glass-card glass-card-interactive p-5 flex flex-col justify-between overflow-y-auto max-h-[620px]">
+      <div>
+        <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+          <span class="font-cyber text-sm tracking-wider text-white flex items-center gap-2">
+            <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="shield-check" class="w-3.5 h-3.5 text-cyan-400"></i></div>
+            機組月總量限額防線
+          </span>
+          <span class="text-[10px] font-mono-tech text-slate-400">統計週期：<span id="cycle-month">--</span></span>
+        </div>
+
+        <div class="mb-4 p-3 rounded-xl bg-cyan-500/10 border border-cyan-400/20">
+          <div class="flex justify-between items-center text-xs font-mono-tech mb-1">
+            <span class="text-cyan-300 font-bold flex items-center gap-1">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> 注油增量模擬 (What-If)
+            </span>
+            <span id="sim-disp" class="text-white font-cyber">+0 L</span>
+          </div>
+          <input type="range" id="simRange" min="0" max="300" step="10" value="0" oninput="onSimulationChange(this.value)" class="w-full accent-cyan-400 cursor-pointer">
+        </div>
+
+        <div class="space-y-4">
+          <!-- HR2 整合卡片 (全息合併 + 4 大子油箱獨立條) -->
+          <div id="block-HR2" class="p-3.5 rounded-xl bg-white/5 border border-white/10 transition">
+            <div class="flex items-center justify-between text-xs font-mono-tech mb-1.5">
+              <span class="font-bold text-amber-400 flex items-center gap-2 cursor-pointer" onclick="filterByEquip('HR2')" title="點擊檢視 HR2 全油箱明細">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> HR2 熱軋粗軋機 (4子油箱)
+              </span>
+              <span id="badge-HR2" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">安全</span>
+            </div>
+            <div class="flex justify-between items-baseline text-xs mb-1">
+              <span class="text-slate-300">月累計總耗用</span>
+              <span class="font-cyber text-sm"><span id="val-HR2" class="text-white font-bold">0</span> / <span id="limit-HR2" class="text-slate-400">900</span> L</span>
+            </div>
+            <div class="w-full bg-slate-950/60 h-2 rounded-full overflow-hidden border border-white/5 mb-3">
+              <div id="bar-HR2" class="h-2 bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-300 shadow-[0_0_8px_#ffb800]" style="width: 0%"></div>
+            </div>
+
+            <!-- HR2 4 個子油箱獨立進度槽 -->
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 text-[11px] font-mono-tech">
+              <div class="p-2 rounded-lg bg-slate-950/70 border border-white/5 hover:border-amber-400/50 cursor-pointer transition" onclick="filterSubTank('HR2', 'NO1')" title="點擊篩選 NO.1 主油箱">
+                <div class="flex justify-between items-center text-slate-300 mb-1">
+                  <span class="text-amber-300 font-medium">NO.1 主油箱</span>
+                  <span id="val-hr2-no1" class="text-white font-cyber text-[10px]">0 L</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                  <div id="bar-hr2-no1" class="h-1 bg-amber-400 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="p-2 rounded-lg bg-slate-950/70 border border-white/5 hover:border-amber-400/50 cursor-pointer transition" onclick="filterSubTank('HR2', 'NO2')" title="點擊篩選 NO.2 輔助油箱">
+                <div class="flex justify-between items-center text-slate-300 mb-1">
+                  <span class="text-amber-300 font-medium">NO.2 輔助</span>
+                  <span id="val-hr2-no2" class="text-white font-cyber text-[10px]">0 L</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                  <div id="bar-hr2-no2" class="h-1 bg-amber-400 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="p-2 rounded-lg bg-slate-950/70 border border-white/5 hover:border-cyan-400/50 cursor-pointer transition" onclick="filterSubTank('HR2', 'AGC')" title="點擊篩選 AGC 厚度油箱">
+                <div class="flex justify-between items-center text-cyan-300 mb-1">
+                  <span class="font-medium">AGC 厚度</span>
+                  <span id="val-hr2-agc" class="text-white font-cyber text-[10px]">0 L</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                  <div id="bar-hr2-agc" class="h-1 bg-cyan-400 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="p-2 rounded-lg bg-slate-950/70 border border-white/5 hover:border-pink-400/50 cursor-pointer transition" onclick="filterSubTank('HR2', 'HGC')" title="點擊篩選 HGC 壓下油箱">
+                <div class="flex justify-between items-center text-pink-400 mb-1">
+                  <span class="font-medium">HGC 壓下</span>
+                  <span id="val-hr2-hgc" class="text-white font-cyber text-[10px]">0 L</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                  <div id="bar-hr2-hgc" class="h-1 bg-pink-500 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- HR3 整合卡片 (全息合併 + AUX / Push-UP 雙子油箱獨立條) -->
+          <div id="block-HR3" class="p-3.5 rounded-xl bg-white/5 border border-white/10 transition">
+            <div class="flex items-center justify-between text-xs font-mono-tech mb-1.5">
+              <span class="font-bold text-pink-400 flex items-center gap-2 cursor-pointer" onclick="filterByEquip('HR3')" title="點擊檢視 HR3 全油箱明細">
+                <span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span> HR3 熱精軋機 (AUX / Push-UP)
+              </span>
+              <span id="badge-HR3" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">安全</span>
+            </div>
+            <div class="flex justify-between items-baseline text-xs mb-1">
+              <span class="text-slate-300">月累計總耗用</span>
+              <span class="font-cyber text-sm"><span id="val-HR3" class="text-white font-bold">0</span> / <span id="limit-HR3" class="text-slate-400">600</span> L</span>
+            </div>
+            <div class="w-full bg-slate-950/60 h-2 rounded-full overflow-hidden border border-white/5 mb-3">
+              <div id="bar-HR3" class="h-2 bg-gradient-to-r from-pink-500 to-rose-400 transition-all duration-300 shadow-[0_0_8px_#ff0055]" style="width: 0%"></div>
+            </div>
+
+            <!-- HR3 2 個子油箱獨立進度槽 -->
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 text-[11px] font-mono-tech">
+              <div class="p-2 rounded-lg bg-slate-950/70 border border-white/5 hover:border-pink-400/50 cursor-pointer transition" onclick="filterSubTank('HR3', 'AUX')" title="點擊篩選 AUX 輔助油箱">
+                <div class="flex justify-between items-center text-slate-300 mb-1">
+                  <span class="text-pink-300 font-medium">AUX 輔助</span>
+                  <span id="val-hr3-aux" class="text-white font-cyber text-[10px]">0 L</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                  <div id="bar-hr3-aux" class="h-1 bg-pink-400 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="p-2 rounded-lg bg-slate-950/70 border border-rose-400/50 cursor-pointer transition" onclick="filterSubTank('HR3', 'PUSHUP')" title="點擊篩選 Push-UP 壓下油箱">
+                <div class="flex justify-between items-center text-slate-300 mb-1">
+                  <span class="text-rose-300 font-medium">Push-UP 壓下</span>
+                  <span id="val-hr3-pushup" class="text-white font-cyber text-[10px]">0 L</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                  <div id="bar-hr3-pushup" class="h-1 bg-rose-500 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CR5 整合卡片 (全息合併 + AGC / BENDING / 中壓 3 子油箱獨立條) -->
+          <div id="block-CR5" class="p-3.5 rounded-xl bg-white/5 border border-white/10 transition">
+            <div class="flex items-center justify-between text-xs font-mono-tech mb-1.5">
+              <span class="font-bold text-emerald-400 flex items-center gap-2 cursor-pointer" onclick="filterByEquip('CR5')" title="點擊檢視 CR5 全油箱明細">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#10b981]"></span> CR5 冷軋機 (AGC / BENDING / 中壓)
+              </span>
+              <span id="badge-CR5" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">安全</span>
+            </div>
+            <div class="flex justify-between items-baseline text-xs mb-1">
+              <span class="text-slate-300">月累計總耗用</span>
+              <span class="font-cyber text-sm"><span id="val-CR5" class="text-white font-bold">0</span> / <span id="limit-CR5" class="text-slate-400">350</span> L</span>
+            </div>
+            <div class="w-full bg-slate-950/60 h-2 rounded-full overflow-hidden border border-white/5 mb-3">
+              <div id="bar-CR5" class="h-2 bg-gradient-to-r from-emerald-500 to-[#10b981] transition-all duration-300 shadow-[0_0_8px_#10b981]" style="width: 0%"></div>
+            </div>
+
+            <!-- CR5 3 個子油箱獨立進度槽 -->
+            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-white/10 text-[10px] font-mono-tech">
+              <div class="p-1.5 rounded-lg bg-slate-950/70 border border-white/5 hover:border-emerald-400/50 cursor-pointer transition" onclick="filterSubTank('CR5', 'AGC')" title="點擊篩選 AGC 厚度油箱">
+                <div class="flex justify-between items-center text-slate-300 mb-1">
+                  <span class="text-emerald-300 font-medium">AGC 厚度</span>
+                  <span id="val-cr5-agc" class="text-white font-cyber text-[9px]">0 L</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                  <div id="bar-cr5-agc" class="h-1 bg-emerald-400 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="p-1.5 rounded-lg bg-slate-950/70 border border-white/5 hover:border-cyan-400/50 cursor-pointer transition" onclick="filterSubTank('CR5', 'BENDING')" title="點擊篩選 BENDING 彎輥油箱">
+                <div class="flex justify-between items-center text-slate-300 mb-1">
+                  <span class="text-cyan-300 font-medium">BENDING</span>
+                  <span id="val-cr5-bending" class="text-white font-cyber text-[9px]">0 L</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                  <div id="bar-cr5-bending" class="h-1 bg-cyan-400 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="p-1.5 rounded-lg bg-slate-950/70 border border-purple-400/50 cursor-pointer transition" onclick="filterSubTank('CR5', 'MID')" title="點擊篩選 中壓 液壓油箱">
+                <div class="flex justify-between items-center text-slate-300 mb-1">
+                  <span class="text-purple-300 font-medium">中壓系統</span>
+                  <span id="val-cr5-mid" class="text-white font-cyber text-[9px]">0 L</span>
+                </div>
+                <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                  <div id="bar-cr5-mid" class="h-1 bg-purple-400 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-white/10 text-[11px] font-mono-tech text-slate-400 flex justify-between items-center">
+        <span>單次上限標準：<span id="single-limit-disp" class="text-cyan-300 font-bold">400</span> L</span>
+        <button onclick="openThresholdModal()" class="text-cyan-400 hover:underline">變更閾值 &gt;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI 狀態卡 (4 大指標卡片全面加入懸停浮凸放大) -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 z-10 relative">
+    <div class="glass-card glass-card-interactive p-4 cursor-pointer hover:border-cyan-400/50" onclick="filterAll()" title="點擊檢視全機組明細">
+      <div class="flex items-center justify-between text-xs font-mono-tech text-slate-400 mb-1">
+        全機組歷史總加油
+        <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="database" class="w-3.5 h-3.5 text-cyan-400"></i></div>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span id="kpi-total" class="text-2xl md:text-3xl font-black font-cyber text-white tracking-wider">0.0</span>
+        <span class="text-xs font-mono-tech text-cyan-400">公升 (L)</span>
+      </div>
+      <div class="text-[10px] font-mono-tech text-slate-400 mt-2 flex justify-between">
+        <span>規格：Super 46AWS</span>
+        <span class="text-cyan-400 font-bold">點擊重設 &gt;</span>
+      </div>
+    </div>
+
+    <div class="glass-card glass-card-interactive p-4 cursor-pointer hover:border-pink-500/50" onclick="filterCurrentMonth()" title="點擊僅檢視當月份資料">
+      <div class="flex items-center justify-between text-xs font-mono-tech text-slate-400 mb-1">
+        當月總加油量
+        <div class="glass-icon-badge w-6 h-6 border-pink-400/20"><i data-lucide="calendar" class="w-3.5 h-3.5 text-pink-400"></i></div>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span id="kpi-current-month" class="text-2xl md:text-3xl font-black font-cyber text-pink-400 tracking-wider">0.0</span>
+        <span class="text-xs font-mono-tech text-pink-400">公升 (L)</span>
+      </div>
+      <div class="text-[10px] font-mono-tech text-slate-400 mt-2 flex justify-between" id="kpi-current-month-date">
+        <span>統計月份：--</span>
+        <span class="text-pink-400 font-bold">下鑽檢視 &gt;</span>
+      </div>
+    </div>
+
+    <div class="glass-card glass-card-interactive p-4 cursor-pointer hover:border-rose-500/50" onclick="filterOnlyAlerts()" title="點擊僅檢視超標案件">
+      <div class="flex items-center justify-between text-xs font-mono-tech text-slate-400 mb-1">
+        單次超標紀錄 (&gt; <span id="kpi-single-limit-label">400</span>L)
+        <div class="glass-icon-badge w-6 h-6 border-rose-500/20"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-500 animate-bounce"></i></div>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span id="kpi-single-alerts" class="text-2xl md:text-3xl font-black font-cyber text-rose-500 tracking-wider">0</span>
+        <span class="text-xs font-mono-tech text-rose-400">件</span>
+      </div>
+      <div class="text-[10px] font-mono-tech text-rose-300 mt-2 flex justify-between">
+        <span>單筆高於安全標準</span>
+        <span class="text-rose-400 font-bold">篩出超標 &gt;</span>
+      </div>
+    </div>
+
+    <div class="glass-card glass-card-interactive p-4 cursor-pointer hover:border-amber-400/50" onclick="focusTopEquip()" title="點擊 3D 鏡頭飛航至最高耗油機台">
+      <div class="flex items-center justify-between text-xs font-mono-tech text-slate-400 mb-1">
+        當月耗油最高機組
+        <div class="glass-icon-badge w-6 h-6 border-amber-400/20"><i data-lucide="flame" class="w-3.5 h-3.5 text-amber-400"></i></div>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span id="kpi-top-equip" class="text-xl md:text-2xl font-black font-cyber text-amber-300">--</span>
+      </div>
+      <div class="text-[10px] font-mono-tech text-slate-400 mt-2 flex justify-between" id="kpi-top-equip-val">
+        <span>耗量: 0 L</span>
+        <span class="text-amber-300 font-bold">3D聚焦 &gt;</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2D 圖表區 (加入焦點高亮互動提示) -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 z-10 relative">
+    <div class="glass-card glass-card-interactive p-5 lg:col-span-2">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+        <div>
+          <h2 class="text-sm font-cyber text-white flex items-center gap-2">
+            <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="bar-chart-2" class="w-3.5 h-3.5 text-cyan-400"></i></div>
+            HR2 / HR3 / CR5 全機組月度加油趨勢圖
+          </h2>
+          <p class="text-[11px] font-mono-tech text-slate-400 mt-0.5">
+            [互動提示] 點擊柱條可<span class="text-cyan-300 font-bold">焦點鎖定機組/月份</span>並灰暗其餘項目；再次點擊或點重設即還原。
+          </p>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs font-mono-tech">
+          <button onclick="setTimeRange('1M')" id="tr-1M" class="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-slate-300">近1月</button>
+          <button onclick="setTimeRange('3M')" id="tr-3M" class="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-slate-300">近3月</button>
+          <button onclick="setTimeRange('ALL')" id="tr-ALL" class="px-2.5 py-1 rounded-md bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-400/40">全年度</button>
+          <button onclick="resetBarHighlight()" id="btn-reset-bar" class="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white" title="清除長條圖選中與灰暗狀態">重設焦點</button>
+        </div>
+      </div>
+      <div class="h-64 relative">
+        <canvas id="monthlyTrendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 圓餅/環圈圖區塊：支援切換 HR2 / HR3 / CR5 油箱比重 -->
+    <div class="glass-card glass-card-interactive p-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+        <div>
+          <h2 class="text-sm font-cyber text-white flex items-center gap-2">
+            <div class="glass-icon-badge w-6 h-6 border-pink-400/20"><i data-lucide="pie-chart" class="w-3.5 h-3.5 text-pink-400"></i></div>
+            累積耗油比重
+          </h2>
+          <span class="text-[10px] font-mono-tech text-slate-400">點擊扇區或下方標籤鎖定高亮 / 灰暗其餘</span>
+        </div>
+        <div class="flex items-center gap-1 bg-white/5 p-1 rounded-lg border border-white/10 text-[10px] font-mono-tech">
+          <button onclick="setPieEquip('ALL')" id="pie-btn-ALL" class="px-2 py-0.5 rounded font-bold bg-cyan-500/30 text-cyan-300 border border-cyan-400/40">三機組總合</button>
+          <button onclick="setPieEquip('HR2')" id="pie-btn-HR2" class="px-2 py-0.5 rounded text-slate-300 hover:text-white">HR2</button>
+          <button onclick="setPieEquip('HR3')" id="pie-btn-HR3" class="px-2 py-0.5 rounded text-slate-300 hover:text-white">HR3</button>
+          <button onclick="setPieEquip('CR5')" id="pie-btn-CR5" class="px-2 py-0.5 rounded text-slate-300 hover:text-white">CR5</button>
+        </div>
+      </div>
+      <div class="h-52 relative flex items-center justify-center">
+        <canvas id="equipRatioChart"></canvas>
+      </div>
+      <div class="text-[11px] font-mono-tech text-center text-slate-300 mt-2 font-medium" id="pieChartSubCaption">
+        --
+      </div>
+      <!-- 各設備子油箱專屬色彩標籤列表容器 -->
+      <div id="pieSubTankBadges" class="flex flex-wrap items-center justify-center gap-1.5 mt-2.5 pt-2 border-t border-white/10">
+      </div>
+    </div>
+  </div>
+
+  <!-- 三大深度分析圖表 (熱力圖 / 散佈圖 / 帕累托圖) -->
+  <div class="space-y-6 mb-6 z-10 relative">
+
+    <!-- 1. 子油箱每日加油熱力圖 (半年度 H1/H2 統計與動態年份切換) -->
+    <div class="glass-card glass-card-interactive p-5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-white/10 mb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <div class="glass-icon-badge w-6 h-6 border-cyan-400/30 text-cyan-400"><i data-lucide="calendar-days" class="w-3.5 h-3.5"></i></div>
+            <h2 class="text-sm font-cyber text-white tracking-wider">子油箱每日加油熱力圖 // REFILL FREQUENCY HEATMAP</h2>
+          </div>
+          <p class="text-[11px] font-mono-tech text-slate-400 mt-1">
+            Y 軸為全廠 9 大子油箱，依據年份與半年度 (H1: 1~6月 / H2: 7~12月) 獨立切換矩陣。點擊任意色塊穿透篩選當日明細。
+          </p>
+        </div>
+
+        <!-- 年份與半年度分頁切換控制群組 (有紀錄時自動生成) -->
+        <div class="flex flex-wrap items-center gap-2">
+          <div id="heatmap-year-selector" class="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 text-xs font-mono-tech">
+            <!-- 年份按鈕由 JS 依照紀錄動態注入 -->
+          </div>
+
+          <div id="heatmap-half-selector" class="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 text-xs font-mono-tech">
+            <button onclick="setHeatmapHalf(1)" id="btn-half-1" class="px-2.5 py-1 rounded-lg text-slate-300 hover:text-white transition">H1 上半年 (1~6月)</button>
+            <button onclick="setHeatmapHalf(2)" id="btn-half-2" class="px-2.5 py-1 rounded-lg text-slate-300 hover:text-white transition">H2 下半年 (7~12月)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 圖例說明 -->
+      <div class="flex items-center justify-between text-[10px] font-mono-tech text-slate-400 mb-2">
+        <span id="heatmap-period-label" class="text-cyan-300 font-bold">目前檢視週期：--</span>
+        <div class="flex items-center gap-2">
+          <span>無補油</span>
+          <span class="w-3 h-3 rounded-sm bg-slate-900 border border-white/10 inline-block"></span>
+          <span class="w-3 h-3 rounded-sm bg-emerald-950/80 border border-emerald-500/30 inline-block"></span>
+          <span class="w-3 h-3 rounded-sm bg-emerald-600/70 inline-block"></span>
+          <span class="w-3 h-3 rounded-sm bg-amber-500/80 inline-block"></span>
+          <span class="w-3 h-3 rounded-sm bg-rose-500 shadow-[0_0_6px_#ff0055] inline-block"></span>
+          <span>&gt;200L (大漏)</span>
+        </div>
+      </div>
+
+      <!-- 熱力圖水平捲軸容器 -->
+      <div class="overflow-x-auto pb-2">
+        <div id="heatmap-container" class="min-w-[840px] space-y-1.5 font-mono-tech text-xs">
+          <!-- 由 JavaScript 動態生成 9 大子油箱與所選半年度每日格子 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 單次加油量分佈散佈圖 + 3. 軋延設備油耗帕累托圖 (並排呈現) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- 散佈圖 (Scatter Outlier Analysis) -->
+      <div class="glass-card glass-card-interactive p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+            <div class="flex items-center gap-2">
+              <div class="glass-icon-badge w-6 h-6 border-rose-500/30 text-rose-400"><i data-lucide="activity" class="w-3.5 h-3.5"></i></div>
+              <h2 class="text-sm font-cyber text-white">單次加油量分佈散佈圖 // OUTLIER SCATTER</h2>
+            </div>
+            <span class="text-[10px] font-mono-tech px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30">單次警戒基準: 400L</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 text-[10px] font-mono-tech text-slate-300 mb-2 bg-slate-950/50 p-2 rounded-lg border border-white/5">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> 常規微補 (&lt; 100L)</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> 一般補充 (100~200L)</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_6px_#ff0055]"></span> 異常大漏/清槽 (&gt; 200L)</span>
+            <span class="text-slate-400 ml-auto">※ 點擊點位檢視工單備註</span>
+          </div>
+          <div class="h-64 relative">
+            <canvas id="scatterOutlierChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- 帕累托圖 (80/20 Pareto Chart) -->
+      <div class="glass-card glass-card-interactive p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+            <div class="flex items-center gap-2">
+              <div class="glass-icon-badge w-6 h-6 border-amber-400/30 text-amber-400"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i></div>
+              <h2 class="text-sm font-cyber text-white">設備油耗帕累托圖 // 80/20 PARETO</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-mono-tech px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30">80% 核心源頭線</span>
+              <button onclick="resetParetoHighlight()" class="text-[10px] font-mono-tech px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white" title="重設帕累托柱狀高亮">重設</button>
+            </div>
+          </div>
+          <p class="text-[11px] font-mono-tech text-slate-400 mb-2">
+            9 大子系統歷史累計耗油總量 (長條降冪) 疊加累計佔比曲線 (折線)。點擊柱條即時鎖定高亮並虛化未選中油箱。
+          </p>
+          <div class="h-64 relative">
+            <canvas id="paretoChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 明細資料庫 (加入懸停浮凸放大) -->
+  <div class="glass-card glass-card-interactive overflow-hidden mb-4 z-10 relative">
+    <div class="p-4 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/5">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="text-xs font-mono-tech text-slate-400 mr-1 flex items-center gap-1">
+          <i data-lucide="filter" class="w-3.5 h-3.5 text-cyan-400"></i> 快篩:
+        </span>
+        <button onclick="setFilterChip('ALL')" id="chip-ALL" class="filter-chip active">全部</button>
+        
+        <!-- HR2 群組 -->
+        <button onclick="setFilterChip('HR2')" id="chip-HR2" class="filter-chip text-amber-400">HR2全</button>
+        <button onclick="filterSubTank('HR2','NO1')" id="chip-HR2_NO1" class="filter-chip text-amber-300 border-amber-500/30">HR2-NO1</button>
+        <button onclick="filterSubTank('HR2','NO2')" id="chip-HR2_NO2" class="filter-chip text-amber-300 border-amber-500/30">HR2-NO2</button>
+        <button onclick="filterSubTank('HR2','AGC')" id="chip-HR2_AGC" class="filter-chip text-cyan-300 border-cyan-400/30">HR2-AGC</button>
+        <button onclick="filterSubTank('HR2','HGC')" id="chip-HR2_HGC" class="filter-chip text-pink-400 border-pink-500/30">HR2-HGC</button>
+        
+        <!-- HR3 群組 -->
+        <button onclick="setFilterChip('HR3')" id="chip-HR3" class="filter-chip text-pink-400">HR3全</button>
+        <button onclick="filterSubTank('HR3','AUX')" id="chip-HR3_AUX" class="filter-chip text-pink-300 border-pink-500/30">HR3-AUX</button>
+        <button onclick="filterSubTank('HR3','PUSHUP')" id="chip-HR3_PUSHUP" class="filter-chip text-rose-300 border-rose-500/30">HR3-PushUP</button>
+        
+        <!-- CR5 群組 -->
+        <button onclick="setFilterChip('CR5')" id="chip-CR5" class="filter-chip text-emerald-400">CR5全</button>
+        <button onclick="filterSubTank('CR5','AGC')" id="chip-CR5_AGC" class="filter-chip text-emerald-300 border-emerald-500/30">CR5-AGC</button>
+        <button onclick="filterSubTank('CR5','BENDING')" id="chip-CR5_BENDING" class="filter-chip text-cyan-300 border-cyan-400/30">CR5-BEND</button>
+        <button onclick="filterSubTank('CR5','MID')" id="chip-CR5_MID" class="filter-chip text-purple-300 border-purple-400/30">CR5-中壓</button>
+
+        <button onclick="setFilterChip('ALERT')" id="chip-ALERT" class="filter-chip text-rose-400">超標⚠️</button>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- 搜尋列：加入快速清除按鈕 -->
+        <div class="relative flex items-center">
+          <input type="text" id="searchInput" oninput="renderTable()" placeholder="快篩設備、人員、油箱..." 
+                 class="bg-slate-900 border border-white/15 text-xs rounded-xl px-3.5 py-1.5 pl-8 pr-7 text-slate-200 font-mono-tech focus:outline-none focus:border-cyan-400 w-52 sm:w-60">
+          <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 text-slate-400 pointer-events-none"></i>
+          <button type="button" onclick="clearSearchInput()" class="absolute right-2 text-slate-400 hover:text-white transition text-xs p-1" title="清空關鍵字">✕</button>
+        </div>
+        <select id="pageSizeSelect" onchange="changePageSize(this.value)" class="bg-slate-900 border border-white/15 text-xs rounded-xl px-2.5 py-1.5 text-slate-200 font-mono-tech focus:outline-none focus:border-cyan-400">
+          <option value="10">每頁 10 筆</option>
+          <option value="25">每頁 25 筆</option>
+          <option value="50">每頁 50 筆</option>
+          <option value="999">全部顯示</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto max-h-80">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead class="bg-slate-900 text-slate-300 font-mono-tech sticky top-0 uppercase tracking-wider text-[11px] border-b border-white/10 select-none">
+          <tr>
+            <th class="py-3 px-4 cursor-pointer hover:text-cyan-400 transition" onclick="sortTableBy('date')">
+              加油日期 <span id="sort-date">▼</span>
+            </th>
+            <th class="py-3 px-4 cursor-pointer hover:text-cyan-400 transition" onclick="sortTableBy('equipCode')">
+              設備代碼 <span id="sort-equipCode">↕</span>
+            </th>
+            <th class="py-3 px-4">設備油箱 (分區標籤)</th>
+            <th class="py-3 px-4">油品規格</th>
+            <th class="py-3 px-4 text-right cursor-pointer hover:text-cyan-400 transition" onclick="sortTableBy('volume')">
+              本次加油量(L) <span id="sort-volume">↕</span>
+            </th>
+            <th class="py-3 px-4 text-right">單次上限基準(L)</th>
+            <th class="py-3 px-4 text-center">警示狀態</th>
+            <th class="py-3 px-4 cursor-pointer hover:text-cyan-400 transition" onclick="sortTableBy('inspector')">
+              巡檢人員 <span id="sort-inspector">↕</span>
+            </th>
+            <th class="py-3 px-4">現場狀況備註 (雙擊編輯)</th>
+            <th class="py-3 px-4 text-center">操作</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody" class="divide-y divide-white/5 font-mono-tech text-slate-200">
+        </tbody>
+      </table>
+    </div>
+
+    <div class="p-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono-tech text-slate-400 bg-white/5">
+      <div id="pageInfo">顯示第 1 到 10 筆，共 0 筆</div>
+      <div class="flex items-center gap-1.5" id="paginationControls"></div>
+    </div>
+  </div>
+
+  <footer class="text-center text-[11px] font-mono-tech text-slate-500 py-3 z-10 relative">
+    CYBER-LUBE PLATFORM 2026 // 重點設備油壓線上監控管理系統 // HR2 (4油箱) · HR3 (AUX / Push-UP) · CR5 (AGC / BENDING / 中壓)
+  </footer>
+
+  <!-- 彈窗 1：新增 / 編輯加油紀錄 (含 HR2/HR3/CR5 多子油箱快速選擇) -->
+  <div id="addModal" class="modal-backdrop">
+    <div class="glass-card bg-slate-900 border border-white/20 max-w-lg w-full p-6 shadow-2xl relative z-50">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <h3 id="modal-title" class="text-sm font-cyber font-bold text-cyan-300 flex items-center gap-2">
+          <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="plus-circle" class="w-3.5 h-3.5 text-cyan-400"></i></div>
+          登錄設備加油紀錄 // REFILL EVENT
+        </h3>
+        <button type="button" onclick="closeAddModal()" class="text-slate-400 hover:text-white transition p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      
+      <form id="refillForm" onsubmit="handleFormSubmit(event)" class="space-y-3.5 text-xs font-mono-tech">
+        <input type="hidden" id="form-edit-row" value="">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 mb-1">加油日期</label>
+            <input type="date" id="form-date" required class="w-full bg-slate-950 border border-white/20 rounded-xl p-2 text-white focus:outline-none focus:border-cyan-400">
+          </div>
+          <div>
+            <label class="block text-slate-300 mb-1">巡檢人員</label>
+            <input type="text" id="form-inspector" required placeholder="如：何嘉峻" class="w-full bg-slate-950 border border-white/20 rounded-xl p-2 text-white focus:outline-none focus:border-cyan-400">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1">設備代碼</label>
+          <select id="form-equip-code" onchange="onEquipSelectChange(this.value)" class="w-full bg-slate-950 border border-white/20 rounded-xl p-2 text-cyan-300 font-bold focus:outline-none focus:border-cyan-400">
+            <option value="HR2">HR2 熱軋機 (4-Hi 4重粗軋機)</option>
+            <option value="HR3">HR3 熱精軋機 (4-Stand 精軋)</option>
+            <option value="CR5">CR5 冷軋機</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1">設備油箱 (分區槽體)</label>
+          <select id="form-part-select" onchange="onPartSelectChange(this.value)" class="w-full bg-slate-950 border border-white/20 rounded-xl p-2 text-white focus:outline-none focus:border-cyan-400 mb-1.5">
+            <optgroup label="HR2 液壓系統 4 大分區油箱">
+              <option value="HR2 NO.1 液壓油箱">HR2 - NO.1 液壓油箱 (主系統)</option>
+              <option value="HR2 NO.2 液壓油箱">HR2 - NO.2 液壓油箱 (輔助系統)</option>
+              <option value="HR2 AGC 厚度控制油箱">HR2 - AGC 液壓油箱 (自動厚度控制)</option>
+              <option value="HR2 HGC 液壓壓下油箱">HR2 - HGC 液壓油箱 (高壓壓下)</option>
+            </optgroup>
+            <optgroup label="HR3 熱精軋機油箱">
+              <option value="HR3 AUX 輔助油箱">HR3 - AUX 輔助油箱</option>
+              <option value="HR3 Push-UP 壓下油箱">HR3 - Push-UP 壓下油箱</option>
+            </optgroup>
+            <optgroup label="CR5 冷軋機油箱">
+              <option value="CR5 AGC 厚度控制油箱">CR5 - AGC 液壓油箱</option>
+              <option value="CR5 BENDING 彎輥油箱">CR5 - BENDING 彎輥油箱</option>
+              <option value="CR5 中壓 液壓油箱">CR5 - 中壓 液壓油箱</option>
+            </optgroup>
+            <optgroup label="自訂輸入">
+              <option value="CUSTOM">自行輸入其它油箱部位...</option>
+            </optgroup>
+          </select>
+          <input type="text" id="form-part-custom" class="w-full bg-slate-950 border border-white/20 rounded-xl p-2 text-white focus:outline-none focus:border-cyan-400 hidden" placeholder="請手動輸入具體油箱部位名稱">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1">油品規格 (鎖定標準)</label>
+          <input type="text" id="form-oil-spec" readonly value="Super 46AWS / ISO 46" class="w-full bg-slate-950/50 border border-white/10 rounded-xl p-2 text-cyan-300 cursor-not-allowed">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 mb-1">本次加油量(L)</label>
+            <input type="number" step="0.1" id="form-volume" required placeholder="0.0" class="w-full bg-slate-950 border border-white/20 rounded-xl p-2 text-white font-cyber text-base focus:outline-none focus:border-cyan-400">
+          </div>
+          <div>
+            <label class="block text-slate-300 mb-1">單次上限基準(L)</label>
+            <input type="number" step="1" id="form-single-limit" required value="400" class="w-full bg-slate-950 border border-white/20 rounded-xl p-2 text-white font-cyber text-base focus:outline-none focus:border-cyan-400">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1">現場狀況備註</label>
+          <textarea id="form-notes" rows="2" placeholder="常態保養補油、排查管路微漏..." class="w-full bg-slate-950 border border-white/20 rounded-xl p-2 text-white focus:outline-none focus:border-cyan-400"></textarea>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-white/10">
+          <button type="button" onclick="closeAddModal()" class="px-4 py-2 btn-glass text-slate-300 rounded-xl">取消</button>
+          <button type="submit" id="btn-submit-form" class="btn-glass-primary px-5 py-2 text-white font-bold">確認寫入試算表</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 彈窗 2：Google 試算表 API 設定 -->
+  <div id="serverModal" class="modal-backdrop">
+    <div class="glass-card bg-slate-900 border border-white/20 max-w-md w-full p-6 shadow-2xl relative z-50">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <h3 class="text-sm font-cyber font-bold text-cyan-300 flex items-center gap-2">
+          <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="link" class="w-3.5 h-3.5"></i></div>
+          Google 試算表 Web App URL 設定
+        </h3>
+        <button type="button" onclick="closeServerConfigModal()" class="text-slate-400 hover:text-white transition p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs font-mono-tech">
+        <div>
+          <label class="block text-slate-300 font-bold mb-1">Apps Script 部署網址</label>
+          <input type="text" id="cfg-api-url" class="w-full bg-slate-950 border border-white/20 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-400" placeholder="https://script.google.com/macros/s/.../exec">
+          <p class="text-[10px] text-slate-400 mt-1.5">
+            貼上 Google 試算表發布為網頁應用程式 (所有人可存取) 的 URL。
+          </p>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-white/10">
+          <button type="button" onclick="closeServerConfigModal()" class="px-4 py-2 btn-glass text-slate-300 rounded-xl">取消</button>
+          <button type="button" onclick="saveServerConfig()" class="btn-glass-primary px-5 py-2 text-white font-bold">儲存並立即連線</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 彈窗 3：警示閥值設定 (含各機台月限額) -->
+  <div id="thresholdModal" class="modal-backdrop">
+    <div class="glass-card bg-slate-900 border border-pink-500/40 max-w-md w-full p-6 shadow-2xl relative z-50">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <h3 class="text-sm font-cyber font-bold text-pink-400 flex items-center gap-2">
+          <div class="glass-icon-badge w-6 h-6 border-pink-400/20"><i data-lucide="sliders" class="w-3.5 h-3.5"></i></div>
+          警示閥值校準 // THRESHOLD CONFIG
+        </h3>
+        <button type="button" onclick="closeThresholdModal()" class="text-slate-400 hover:text-white transition p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="thresholdForm" onsubmit="handleThresholdSubmit(event)" class="space-y-4 text-xs font-mono-tech">
+        <div>
+          <label class="block text-slate-300 font-bold mb-1">單次加油警示標準 (L)</label>
+          <input type="number" step="1" id="cfg-single-limit" required class="w-full bg-slate-950 border border-white/20 rounded-xl p-2 text-white font-cyber focus:outline-none focus:border-pink-500">
+          <span class="text-[10px] text-slate-400">預設標準為 400 L</span>
+        </div>
+
+        <div class="border-t border-white/10 pt-3">
+          <div class="text-xs text-pink-400 font-bold mb-2">機組月度加油上限警示 (L/月)</div>
+          
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-amber-400">HR2 全息總限額：</span>
+              <input type="number" step="1" id="cfg-hr2-limit" required class="w-32 bg-slate-950 border border-white/20 rounded-xl p-1.5 text-white font-cyber text-right focus:outline-none focus:border-pink-500">
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-pink-500">HR3 月限額：</span>
+              <input type="number" step="1" id="cfg-hr3-limit" required class="w-32 bg-slate-950 border border-white/20 rounded-xl p-1.5 text-white font-cyber text-right focus:outline-none focus:border-pink-500">
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-emerald-400">CR5 月限額：</span>
+              <input type="number" step="1" id="cfg-cr5-limit" required class="w-32 bg-slate-950 border border-white/20 rounded-xl p-1.5 text-white font-cyber text-right focus:outline-none focus:border-pink-500">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-white/10">
+          <button type="button" onclick="closeThresholdModal()" class="px-4 py-2 btn-glass text-slate-300 rounded-xl">取消</button>
+          <button type="submit" class="btn-glass px-5 py-2 text-pink-400 font-bold border-pink-500/50 hover:bg-pink-500/20">寫入設定</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 彈窗 4：工單與異常事故追蹤彈窗 (由散佈圖點擊觸發) -->
+  <div id="outlierModal" class="modal-backdrop">
+    <div class="glass-card bg-slate-900 border border-rose-500/50 max-w-lg w-full p-6 shadow-2xl relative z-50">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <h3 class="text-sm font-cyber font-bold text-rose-400 flex items-center gap-2">
+          <div class="glass-icon-badge w-6 h-6 border-rose-500/30"><i data-lucide="alert-octagon" class="w-3.5 h-3.5 text-rose-400 animate-pulse"></i></div>
+          補油異常事件追蹤工單 // INCIDENT TICKET
+        </h3>
+        <button type="button" onclick="closeOutlierModal()" class="text-slate-400 hover:text-white transition p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3.5 text-xs font-mono-tech">
+        <div class="grid grid-cols-2 gap-3 p-3 bg-slate-950/80 rounded-xl border border-white/10">
+          <div>
+            <span class="text-slate-400 block text-[11px]">事件日期</span>
+            <span id="outlier-date" class="text-white font-bold text-sm">--</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-[11px]">巡檢登錄人員</span>
+            <span id="outlier-inspector" class="text-cyan-300 font-bold text-sm">--</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-[11px]">所屬機台 / 油箱</span>
+            <span id="outlier-part" class="text-amber-300 font-bold">--</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-[11px]">單次加油量 / 基準</span>
+            <span id="outlier-volume" class="text-rose-400 font-cyber font-bold text-base">0 L</span>
+          </div>
+        </div>
+
+        <div>
+          <span class="text-slate-400 block text-[11px] mb-1">事故嚴重等級判定</span>
+          <div id="outlier-severity-badge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+            --
+          </div>
+        </div>
+
+        <div>
+          <span class="text-slate-400 block text-[11px] mb-1">現場檢視狀況備註</span>
+          <div id="outlier-notes" class="p-3 bg-slate-950 rounded-xl border border-white/10 text-slate-200 leading-relaxed max-h-28 overflow-y-auto">
+            --
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-3 border-t border-white/10">
+          <span class="text-[11px] text-slate-400">系統狀態：<span class="text-emerald-400 font-bold">已同步工單登錄</span></span>
+          <div class="flex gap-2">
+            <button type="button" onclick="closeOutlierModal()" class="px-3 py-1.5 btn-glass text-slate-300 text-xs">關閉</button>
+            <button type="button" id="btn-outlier-filter" class="btn-glass-primary px-4 py-1.5 text-white font-bold text-xs flex items-center gap-1.5">
+              <i data-lucide="filter" class="w-3.5 h-3.5"></i> 表格鎖定此案
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript 核心邏輯 -->
+  <script>
+    const TARGET_OIL = "Super 46AWS / ISO 46";
+
+    let API_URL = localStorage.getItem('cyber_google_sheet_api') || '';
+
+    const DEFAULT_THRESHOLDS = {
+      singleLimit: 400,
+      monthly: { HR2: 900, HR3: 600, CR5: 350 },
+      hr2SubLimits: { NO1: 300, NO2: 300, AGC: 150, HGC: 150 },
+      hr3SubLimits: { AUX: 350, PUSHUP: 250 },
+      cr5SubLimits: { AGC: 150, BENDING: 100, MID: 100 }
+    };
+
+    let thresholds = JSON.parse(localStorage.getItem('cyber_oil_thresholds')) || DEFAULT_THRESHOLDS;
+    if (!thresholds.hr2SubLimits) thresholds.hr2SubLimits = DEFAULT_THRESHOLDS.hr2SubLimits;
+    if (!thresholds.hr3SubLimits) thresholds.hr3SubLimits = DEFAULT_THRESHOLDS.hr3SubLimits;
+    if (!thresholds.cr5SubLimits) thresholds.cr5SubLimits = DEFAULT_THRESHOLDS.cr5SubLimits;
+
+    let records = [];
+
+    // 互動狀態
+    let selectedEquipFilter = 'ALL'; 
+    let monthFilter = null;
+    let timeRange = 'ALL';
+    let simulationAddLiters = 0;
+    let sortConfig = { key: 'date', order: 'desc' };
+    let currentPage = 1;
+    let pageSize = 10;
+    let selectedRowIndex = null;
+    let currentPieEquip = 'ALL'; // 'ALL', 'HR2', 'HR3', 'CR5'
+
+    // 長條圖焦點選取狀態：用於高亮選中長條與未選中灰暗虛化
+    let barFocusState = {
+      datasetIndex: null, // 0: HR2, 1: HR3, 2: CR5
+      index: null         // 月份索引 index
+    };
+
+    // 環圈圖與帕累托圖焦點狀態
+    let pieFocusIndex = null;
+    let paretoFocusIndex = null;
+
+    // 熱力圖半年度與年份狀態
+    let heatmapSelectedYear = null;
+    let heatmapSelectedHalf = 1; // 1 = H1 (1~6月), 2 = H2 (7~12月)
+
+    let trendChartInstance = null;
+    let ratioChartInstance = null;
+    let scatterChartInstance = null;
+    let paretoChartInstance = null;
+    
+    const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000;
+    let pollingTimer = null;
+
+    // 全廠定義 9 大子系統標準字典
+    const SUB_SYSTEMS = [
+      { equip: 'HR2', sub: 'NO1', label: 'HR2 - NO.1 主油箱', color: '#ffb800' },
+      { equip: 'HR2', sub: 'NO2', label: 'HR2 - NO.2 輔助油箱', color: '#fb923c' },
+      { equip: 'HR2', sub: 'AGC', label: 'HR2 - AGC 厚度油箱', color: '#00f0ff' },
+      { equip: 'HR2', sub: 'HGC', label: 'HR2 - HGC 壓下油箱', color: '#ff0055' },
+      { equip: 'HR3', sub: 'AUX', label: 'HR3 - AUX 輔助油箱', color: '#f43f5e' },
+      { equip: 'HR3', sub: 'PUSHUP', label: 'HR3 - Push-UP 壓下油箱', color: '#e11d48' },
+      { equip: 'CR5', sub: 'AGC', label: 'CR5 - AGC 厚度油箱', color: '#10b981' },
+      { equip: 'CR5', sub: 'BENDING', label: 'CR5 - BENDING 彎輥油箱', color: '#06b6d4' },
+      { equip: 'CR5', sub: 'MID', label: 'CR5 - 中壓 液壓系統', color: '#a855f7' }
+    ];
+
+    // Three.js 全域變數
+    let scene, camera, renderer, blueprintGroup, controls;
+    let machineGroups = {};
+    let reservoirTanks = {};
+    
+    let particleSystem = null;
+    let particleData = [];
+
+    let raycaster, mouseVec;
+    let interactiveHitBoxes = [];
+    let hoveredEquip = null;
+    
+    const DEFAULT_CAMERA_POS = new THREE.Vector3(0, 26, 42);
+    const DEFAULT_LOOK_AT = new THREE.Vector3(0, 2.5, 0);
+    let targetCameraPos = DEFAULT_CAMERA_POS.clone();
+    let targetLookAt = DEFAULT_LOOK_AT.clone();
+    let isTransitioningCamera = false;
+
+    let pointerDownPos = { x: 0, y: 0 };
+    let pointerDownTime = 0;
+
+    let lastRenderTime = 0;
+    const FRAME_INTERVAL = 1000 / 30;
+
+    // ==========================================
+    // 輔助函式：清空快篩搜尋輸入框
+    // ==========================================
+    function clearSearchInput(shouldRender = true) {
+      const searchEl = document.getElementById('searchInput');
+      if (searchEl) {
+        searchEl.value = '';
+      }
+      if (shouldRender) {
+        renderTable();
+      }
+    }
+
+    // ==========================================
+    // 多機台子油箱辨識與分類邏輯
+    // ==========================================
+    function getSubTankType(record) {
+      const equip = (record.equipCode || '').toUpperCase();
+      const p = (record.part || '').toUpperCase();
+
+      if (equip === 'HR2') {
+        if (p.includes('AGC')) return 'AGC';
+        if (p.includes('HGC')) return 'HGC';
+        if (p.includes('NO.2') || p.includes('NO2') || p.includes('2號')) return 'NO2';
+        return 'NO1';
+      } else if (equip === 'HR3') {
+        if (p.includes('PUSH') || p.includes('壓下')) return 'PUSHUP';
+        return 'AUX'; // 預設或包含 AUX、輔助
+      } else if (equip === 'CR5') {
+        if (p.includes('AGC')) return 'AGC';
+        if (p.includes('BEND') || p.includes('彎輥')) return 'BENDING';
+        return 'MID'; // 中壓系統
+      }
+      return null;
+    }
+
+    function getSubTankBadge(equipCode, subCode) {
+      const equip = (equipCode || '').toUpperCase();
+      if (equip === 'HR2') {
+        switch(subCode) {
+          case 'NO1': return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">NO.1主箱</span>`;
+          case 'NO2': return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">NO.2輔箱</span>`;
+          case 'AGC': return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">AGC厚度</span>`;
+          case 'HGC': return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-pink-500/20 text-pink-300 border border-pink-500/30">HGC壓下</span>`;
+        }
+      } else if (equip === 'HR3') {
+        switch(subCode) {
+          case 'AUX': return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-pink-500/20 text-pink-300 border border-pink-500/30">AUX輔助</span>`;
+          case 'PUSHUP': return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30">Push-UP</span>`;
+        }
+      } else if (equip === 'CR5') {
+        switch(subCode) {
+          case 'AGC': return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">AGC厚度</span>`;
+          case 'BENDING': return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">BENDING</span>`;
+          case 'MID': return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30">中壓系統</span>`;
+        }
+      }
+      return '';
+    }
+
+    function getSubTankStats(equipCode, month) {
+      const targetMonth = month || getLatestMonth();
+      const equip = equipCode.toUpperCase();
+      
+      if (equip === 'HR2') {
+        const stats = { NO1: 0, NO2: 0, AGC: 0, HGC: 0, TOTAL: 0 };
+        records
+          .filter(r => (r.equipCode || '').toUpperCase() === 'HR2' && getRecordMonth(r.date) === targetMonth)
+          .forEach(r => {
+            const vol = parseFloat(r.volume) || 0;
+            const sub = getSubTankType(r);
+            if (stats[sub] !== undefined) stats[sub] += vol;
+            stats.TOTAL += vol;
+          });
+        return stats;
+      } else if (equip === 'HR3') {
+        const stats = { AUX: 0, PUSHUP: 0, TOTAL: 0 };
+        records
+          .filter(r => (r.equipCode || '').toUpperCase() === 'HR3' && getRecordMonth(r.date) === targetMonth)
+          .forEach(r => {
+            const vol = parseFloat(r.volume) || 0;
+            const sub = getSubTankType(r);
+            if (stats[sub] !== undefined) stats[sub] += vol;
+            stats.TOTAL += vol;
+          });
+        return stats;
+      } else if (equip === 'CR5') {
+        const stats = { AGC: 0, BENDING: 0, MID: 0, TOTAL: 0 };
+        records
+          .filter(r => (r.equipCode || '').toUpperCase() === 'CR5' && getRecordMonth(r.date) === targetMonth)
+          .forEach(r => {
+            const vol = parseFloat(r.volume) || 0;
+            const sub = getSubTankType(r);
+            if (stats[sub] !== undefined) stats[sub] += vol;
+            stats.TOTAL += vol;
+          });
+        return stats;
+      }
+      return {};
+    }
+
+    function startPollingTimer() {
+      if (pollingTimer) clearInterval(pollingTimer);
+      pollingTimer = setInterval(() => {
+        fetchRecordsFromBackend();
+      }, AUTO_REFRESH_INTERVAL);
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const box = document.createElement('div');
+      box.className = 'toast-box';
+      let icon = type === 'success' ? 'check-circle' : (type === 'error' ? 'alert-triangle' : 'info');
+      let color = type === 'success' ? 'text-emerald-400' : (type === 'error' ? 'text-rose-400' : 'text-cyan-400');
+      box.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 ${color}"></i> <span>${msg}</span>`;
+      container.appendChild(box);
+      if (window.lucide) lucide.createIcons();
+      setTimeout(() => {
+        box.style.opacity = '0';
+        box.style.transform = 'translateY(-10px)';
+        box.style.transition = 'all 0.2s ease';
+        setTimeout(() => box.remove(), 200);
+      }, 3000);
+    }
+
+    function formatToInputDate(raw) {
+      if (!raw) return new Date().toISOString().split('T')[0];
+      const str = String(raw).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      return str.substring(0, 10);
+    }
+
+    function getRecordMonth(raw) {
+      return formatToInputDate(raw).substring(0, 7);
+    }
+
+    function getLatestMonth() {
+      const months = [...new Set(records.map(r => getRecordMonth(r.date)))].filter(Boolean).sort();
+      return months.length > 0 ? months[months.length - 1] : formatToInputDate(new Date()).substring(0, 7);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.lucide) lucide.createIcons();
+      document.getElementById('form-date').value = formatToInputDate(new Date());
+      initThreeBlueprint();
+      fetchRecordsFromBackend();
+      startPollingTimer();
+    });
+
+    // ==========================================================
+    // 彈窗開關與表單聯動控制
+    // ==========================================================
+    function openAddModal() { 
+      document.getElementById('form-edit-row').value = '';
+      document.getElementById('refillForm').reset();
+      document.getElementById('form-date').value = formatToInputDate(new Date());
+      document.getElementById('form-single-limit').value = thresholds.singleLimit;
+      
+      onEquipSelectChange('HR2');
+
+      document.getElementById('modal-title').innerHTML = `
+        <div class="glass-icon-badge w-6 h-6 border-cyan-400/20"><i data-lucide="plus-circle" class="w-3.5 h-3.5 text-cyan-400"></i></div>
+        登錄設備加油紀錄 // REFILL EVENT
+      `;
+      document.getElementById('btn-submit-form').innerText = "確認寫入試算表";
+      document.getElementById('addModal').classList.add('active'); 
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeAddModal() { 
+      document.getElementById('addModal').classList.remove('active'); 
+      document.getElementById('refillForm').reset(); 
+    }
+
+    function onEquipSelectChange(val) {
+      const partSelect = document.getElementById('form-part-select');
+      const customInput = document.getElementById('form-part-custom');
+      customInput.classList.add('hidden');
+      customInput.required = false;
+
+      if (val === 'HR2') {
+        partSelect.value = "HR2 NO.1 液壓油箱";
+      } else if (val === 'HR3') {
+        partSelect.value = "HR3 AUX 輔助油箱";
+      } else if (val === 'CR5') {
+        partSelect.value = "CR5 AGC 厚度控制油箱";
+      }
+    }
+
+    function onPartSelectChange(val) {
+      const customInput = document.getElementById('form-part-custom');
+      if (val === 'CUSTOM') {
+        customInput.classList.remove('hidden');
+        customInput.required = true;
+        customInput.focus();
+      } else {
+        customInput.classList.add('hidden');
+        customInput.required = false;
+      }
+    }
+
+    function openServerConfigModal() {
+      document.getElementById('cfg-api-url').value = API_URL;
+      document.getElementById('serverModal').classList.add('active');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeServerConfigModal() {
+      document.getElementById('serverModal').classList.remove('active');
+    }
+
+    function saveServerConfig() {
+      const inputUrl = document.getElementById('cfg-api-url').value.trim();
+      API_URL = inputUrl;
+      localStorage.setItem('cyber_google_sheet_api', API_URL);
+      closeServerConfigModal();
+      showToast('已儲存試算表網址，正在連線同步...', 'info');
+      fetchRecordsFromBackend();
+      startPollingTimer();
+    }
+
+    function openThresholdModal() {
+      document.getElementById('cfg-single-limit').value = thresholds.singleLimit;
+      document.getElementById('cfg-hr2-limit').value = thresholds.monthly.HR2;
+      document.getElementById('cfg-hr3-limit').value = thresholds.monthly.HR3;
+      document.getElementById('cfg-cr5-limit').value = thresholds.monthly.CR5;
+      document.getElementById('thresholdModal').classList.add('active');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeThresholdModal() { 
+      document.getElementById('thresholdModal').classList.remove('active'); 
+    }
+
+    function handleThresholdSubmit(e) {
+      e.preventDefault();
+      thresholds.singleLimit = parseFloat(document.getElementById('cfg-single-limit').value) || 400;
+      thresholds.monthly.HR2 = parseFloat(document.getElementById('cfg-hr2-limit').value) || 900;
+      thresholds.monthly.HR3 = parseFloat(document.getElementById('cfg-hr3-limit').value) || 600;
+      thresholds.monthly.CR5 = parseFloat(document.getElementById('cfg-cr5-limit').value) || 350;
+
+      localStorage.setItem('cyber_oil_thresholds', JSON.stringify(thresholds));
+      closeThresholdModal();
+      updateAll();
+      showToast('閥值設定已生效並更新圖表！', 'success');
+    }
+
+    // ==========================================================
+    // Three.js 核心場景構建（全息 3D 合併）
+    // ==========================================================
+    function initThreeBlueprint() {
+      const container = document.getElementById('three-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 1000);
+      camera.position.copy(targetCameraPos);
+
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, powerPreference: "low-power" });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(1.0);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.target.copy(targetLookAt);
+      controls.maxPolarAngle = Math.PI / 2 - 0.03;
+      controls.minDistance = 6;
+      controls.maxDistance = 120;
+
+      raycaster = new THREE.Raycaster();
+      mouseVec = new THREE.Vector2();
+
+      const ambLight = new THREE.AmbientLight(0xffffff, 1.1);
+      scene.add(ambLight);
+
+      const cyanDir = new THREE.DirectionalLight(0x00f0ff, 1.8);
+      cyanDir.position.set(20, 40, 25);
+      scene.add(cyanDir);
+
+      const amberSpot = new THREE.DirectionalLight(0xffb800, 1.2);
+      amberSpot.position.set(-25, 35, 15);
+      scene.add(amberSpot);
+
+      blueprintGroup = new THREE.Group();
+      scene.add(blueprintGroup);
+
+      buildBlueprintFloor();
+      buildHR2RoughingMillFromPhoto(-17.0, 0);
+      buildHR3RealisticPlantTwin(0, -1.5);
+      buildDetailedCR5ColdMill(17.0, 0);
+      buildFloatingParticles();
+
+      container.addEventListener('pointerdown', onPointerDown);
+      container.addEventListener('pointermove', onPointerMove);
+      container.addEventListener('pointerup', onPointerUp);
+      container.addEventListener('mouseleave', onBlueprintMouseLeave);
+      container.addEventListener('dblclick', () => { reset3DCamera(); showToast('視角已還原至全景沙盤', 'info'); });
+      window.addEventListener('resize', onWindowResize);
+
+      requestAnimationFrame(animateBlueprint);
+    }
+
+    function buildBlueprintFloor() {
+      const grid = new THREE.GridHelper(56, 36, 0x00f0ff, 0x091426);
+      grid.position.y = 0;
+      blueprintGroup.add(grid);
+
+      const ringG = new THREE.RingGeometry(24.5, 24.8, 36);
+      const ringM = new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide, transparent: true, opacity: 0.22 });
+      const ring = new THREE.Mesh(ringG, ringM);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.04;
+      blueprintGroup.add(ring);
+    }
+
+    function createBlueprintComponent(geo, color, opacity = 0.45, isEmissive = true) {
+      const group = new THREE.Group();
+      const matMesh = new THREE.MeshPhongMaterial({
+        color: color,
+        emissive: isEmissive ? color : 0x000000,
+        emissiveIntensity: isEmissive ? 0.35 : 0,
+        transparent: true,
+        opacity: opacity,
+        shininess: 60,
+        depthWrite: false
+      });
+      const mesh = new THREE.Mesh(geo, matMesh);
+      group.add(mesh);
+
+      const edges = new THREE.EdgesGeometry(geo, 25);
+      const matLine = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: Math.min(opacity + 0.3, 0.9)
+      });
+      const wire = new THREE.LineSegments(edges, matLine);
+      group.add(wire);
+
+      return { root: group, mesh: mesh, wire: wire };
+    }
+
+    function createSloshingOilReservoir(code, themeHex, emissiveHex, xOff, zOff, height = 5.2, radius = 0.75) {
+      const tankGroup = new THREE.Group();
+      tankGroup.position.set(xOff, 0, zOff);
+
+      const baseGeo = new THREE.CylinderGeometry(radius + 0.16, radius + 0.22, 0.4, 16);
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x182638, metalness: 0.8, roughness: 0.25 });
+      const baseMesh = new THREE.Mesh(baseGeo, metalMat);
+      baseMesh.position.y = 0.2;
+      tankGroup.add(baseMesh);
+
+      const topGeo = new THREE.CylinderGeometry(radius + 0.2, radius + 0.16, 0.35, 16);
+      const topMesh = new THREE.Mesh(topGeo, metalMat);
+      topMesh.position.y = height + 0.55;
+      tankGroup.add(topMesh);
+
+      const glassGeo = new THREE.CylinderGeometry(radius, radius, height, 16, 1, true);
+      const glassMat = new THREE.MeshPhongMaterial({
+        color: 0xdaf5ff,
+        transparent: true,
+        opacity: 0.25,
+        shininess: 90,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const glassMesh = new THREE.Mesh(glassGeo, glassMat);
+      glassMesh.position.y = height / 2 + 0.4;
+      tankGroup.add(glassMesh);
+
+      for (let s = 1; s <= 4; s++) {
+        const ringG = new THREE.RingGeometry(radius + 0.01, radius + 0.05, 16);
+        const ringM = new THREE.MeshBasicMaterial({ color: 0x5078a5, side: THREE.DoubleSide, transparent: true, opacity: 0.65 });
+        const ring = new THREE.Mesh(ringG, ringM);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = (height / 5) * s + 0.4;
+        tankGroup.add(ring);
+      }
+
+      const fluidContainer = new THREE.Group();
+      fluidContainer.position.set(0, 0.4, 0);
+
+      const oilGeo = new THREE.CylinderGeometry(radius - 0.06, radius - 0.06, 1.0, 16, 1, true);
+      const oilMat = new THREE.MeshPhongMaterial({
+        color: themeHex,
+        emissive: emissiveHex,
+        emissiveIntensity: 0.6,
+        shininess: 80,
+        transparent: true,
+        opacity: 0.88,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const oilCylinder = new THREE.Mesh(oilGeo, oilMat);
+      oilCylinder.position.y = 0.5;
+      fluidContainer.add(oilCylinder);
+
+      const btmCap = new THREE.Mesh(
+        new THREE.CircleGeometry(radius - 0.06, 16),
+        new THREE.MeshBasicMaterial({ color: themeHex, transparent: true, opacity: 0.85, side: THREE.DoubleSide })
+      );
+      btmCap.rotation.x = Math.PI / 2;
+      fluidContainer.add(btmCap);
+
+      const waveSurfaceGeo = new THREE.CircleGeometry(radius - 0.06, 16);
+      const waveMat = new THREE.MeshPhongMaterial({
+        color: 0xffffff,
+        emissive: themeHex,
+        emissiveIntensity: 0.5,
+        shininess: 80,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.9
+      });
+      const waveSurface = new THREE.Mesh(waveSurfaceGeo, waveMat);
+      waveSurface.rotation.x = -Math.PI / 2;
+      waveSurface.position.y = 1.0;
+      fluidContainer.add(waveSurface);
+
+      tankGroup.add(fluidContainer);
+
+      const bubbleCount = 10;
+      const bubbles = [];
+      const bubbleGroup = new THREE.Group();
+      for (let b = 0; b < bubbleCount; b++) {
+        const bMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.035, 6, 6),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })
+        );
+        const bAngle = Math.random() * Math.PI * 2;
+        const bDist = Math.random() * (radius - 0.22);
+        bMesh.position.set(Math.cos(bAngle) * bDist, Math.random() * height, Math.sin(bAngle) * bDist);
+        bubbleGroup.add(bMesh);
+        bubbles.push({ mesh: bMesh, speed: 0.02 + Math.random() * 0.02, angle: bAngle, dist: bDist });
+      }
+      tankGroup.add(bubbleGroup);
+
+      reservoirTanks[code] = {
+        group: tankGroup,
+        fluidContainer: fluidContainer,
+        oilCylinder: oilCylinder,
+        waveSurface: waveSurface,
+        bubbles: bubbles,
+        maxHeight: height,
+        currentHeight: 0.15,
+        actualTargetHeight: 0.15,
+        isRefilling: false,
+        refillProgress: 1.0,
+        sloshEnergy: 0.04,
+        wavePhase: Math.random() * 10
+      };
+
+      return tankGroup;
+    }
+
+    function createSingleFourHighStand(themeHex, scale = 1.0) {
+      const standGroup = new THREE.Group();
+
+      const base = createBlueprintComponent(new THREE.BoxGeometry(2.4 * scale, 0.3 * scale, 2.4 * scale), themeHex, 0.5);
+      base.root.position.y = 0.15 * scale;
+      standGroup.add(base.root);
+
+      for (let xOff of [-0.95 * scale, 0.95 * scale]) {
+        const col = createBlueprintComponent(new THREE.BoxGeometry(0.45 * scale, 4.2 * scale, 2.0 * scale), themeHex, 0.55);
+        col.root.position.set(xOff, 2.4 * scale, 0);
+        standGroup.add(col.root);
+      }
+
+      const fourHighRollsGroup = new THREE.Group();
+      fourHighRollsGroup.position.set(0, 2.4 * scale, 0);
+
+      const rollLength = 1.8 * scale;
+      const burRadius = 0.42 * scale;
+      const wrRadius = 0.24 * scale;
+
+      function createStaticRoller(radius, yPos) {
+        const anchorNode = new THREE.Group();
+        anchorNode.position.set(0, yPos, 0);
+
+        const cylGeo = new THREE.CylinderGeometry(radius, radius, rollLength, 16);
+        cylGeo.rotateZ(Math.PI / 2);
+
+        const rollMeshMat = new THREE.MeshPhongMaterial({
+          color: 0xb8cce2,
+          emissive: 0x475e7a,
+          emissiveIntensity: 0.3,
+          transparent: true,
+          opacity: 0.85,
+          shininess: 80
+        });
+        const rollerMesh = new THREE.Mesh(cylGeo, rollMeshMat);
+
+        const edges = new THREE.EdgesGeometry(cylGeo, 25);
+        const wireMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+        rollerMesh.add(new THREE.LineSegments(edges, wireMat));
+        anchorNode.add(rollerMesh);
+
+        for (let cx of [-0.85 * scale, 0.85 * scale]) {
+          const chock = createBlueprintComponent(new THREE.BoxGeometry(0.24 * scale, radius * 1.85, radius * 1.85), themeHex, 0.6);
+          chock.root.position.set(cx, 0, 0);
+          anchorNode.add(chock.root);
+        }
+
+        fourHighRollsGroup.add(anchorNode);
+        return anchorNode;
+      }
+
+      createStaticRoller(burRadius, 1.18 * scale);
+      createStaticRoller(wrRadius, 0.44 * scale);
+      createStaticRoller(wrRadius, -0.44 * scale);
+      createStaticRoller(burRadius, -1.18 * scale);
+
+      standGroup.add(fourHighRollsGroup);
+
+      const capGroup = new THREE.Group();
+      capGroup.position.set(0, 4.6 * scale, 0);
+
+      const capBlock = createBlueprintComponent(new THREE.BoxGeometry(2.3 * scale, 0.65 * scale, 2.1 * scale), themeHex, 0.75);
+      capGroup.add(capBlock.root);
+
+      for (let mx of [-0.6 * scale, 0.6 * scale]) {
+        const agcCyl = createBlueprintComponent(new THREE.CylinderGeometry(0.28 * scale, 0.28 * scale, 0.8 * scale, 12), 0xffffff, 0.8);
+        agcCyl.root.position.set(mx, 0.55 * scale, 0);
+        capGroup.add(agcCyl.root);
+      }
+      standGroup.add(capGroup);
+
+      return {
+        root: standGroup,
+        capGroup: capGroup,
+        baseY: 4.6 * scale,
+        targetCapY: 4.6 * scale
+      };
+    }
+
+    function buildHR2RoughingMillFromPhoto(x, z) {
+      const machine = new THREE.Group();
+      machine.position.set(x, 0, z);
+      const themeHex = 0xffb800;
+      const steelDark = 0x222831;
+      const steelMid = 0x393e46;
+      const metalShiny = 0x94a3b8;
+
+      const millStandGroup = new THREE.Group();
+      millStandGroup.position.set(2.8, 0, 0);
+
+      const foundation1 = createBlueprintComponent(new THREE.BoxGeometry(3.8, 0.55, 4.2), steelDark, 0.95);
+      foundation1.root.position.y = 0.28;
+      millStandGroup.add(foundation1.root);
+
+      const solePlate = createBlueprintComponent(new THREE.BoxGeometry(3.5, 0.4, 3.8), 0x18202c, 0.85);
+      solePlate.root.position.y = 0.75;
+      millStandGroup.add(solePlate.root);
+
+      for (let colX of [-1.25, 1.25]) {
+        const col = createBlueprintComponent(new THREE.BoxGeometry(0.75, 5.2, 1.8), steelMid, 0.75);
+        col.root.position.set(colX, 3.5, 0);
+        millStandGroup.add(col.root);
+
+        const rib = createBlueprintComponent(new THREE.BoxGeometry(0.5, 2.6, 2.0), themeHex, 0.6);
+        rib.root.position.set(colX > 0 ? colX + 0.35 : colX - 0.35, 2.3, 0);
+        millStandGroup.add(rib.root);
+      }
+
+      const rollFaceWidth = 2.4; 
+      const burRadius = 0.52;
+      const wrRadius = 0.28;
+
+      const fourRollConfigs = [
+        { name: "TopBUR", r: burRadius, y: 4.5, isWR: false },
+        { name: "TopWR",  r: wrRadius,  y: 3.5, isWR: true  },
+        { name: "BotWR",  r: wrRadius,  y: 2.7, isWR: true  },
+        { name: "BotBUR", r: burRadius, y: 1.7, isWR: false }
+      ];
+
+      fourRollConfigs.forEach(cfg => {
+        const rollGeo = new THREE.CylinderGeometry(cfg.r, cfg.r, rollFaceWidth, 16);
+        rollGeo.rotateZ(Math.PI / 2);
+
+        const rollMat = new THREE.MeshPhongMaterial({
+          color: cfg.isWR ? 0xe2e8f0 : 0x94a3b8,
+          emissive: cfg.isWR ? 0xffb800 : 0x334155,
+          emissiveIntensity: cfg.isWR ? 0.45 : 0.2,
+          shininess: 90,
+          transparent: true,
+          opacity: 0.9
+        });
+        const rollMesh = new THREE.Mesh(rollGeo, rollMat);
+        rollMesh.position.set(0, cfg.y, 0);
+
+        const edges = new THREE.EdgesGeometry(rollGeo, 20);
+        rollMesh.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 })));
+        millStandGroup.add(rollMesh);
+
+        for (let chX of [-1.15, 1.15]) {
+          const chock = createBlueprintComponent(new THREE.BoxGeometry(0.48, cfg.r * 1.9, 1.25), themeHex, 0.7);
+          chock.root.position.set(chX, cfg.y, 0);
+          millStandGroup.add(chock.root);
+        }
+
+        if (cfg.isWR) {
+          const neckGeo = new THREE.CylinderGeometry(cfg.r * 0.75, cfg.r * 0.75, 0.65, 12);
+          neckGeo.rotateZ(Math.PI / 2);
+          const neck = createBlueprintComponent(neckGeo, 0xd97706, 0.95);
+          neck.root.position.set(-1.45, cfg.y, 0);
+          millStandGroup.add(neck.root);
+        }
+      });
+
+      const capGroup = new THREE.Group();
+      capGroup.position.set(0, 6.2, 0);
+
+      const capBlock = createBlueprintComponent(new THREE.BoxGeometry(3.4, 0.65, 3.6), steelMid, 0.85);
+      capGroup.add(capBlock.root);
+
+      const platform = createBlueprintComponent(new THREE.BoxGeometry(3.8, 0.18, 4.0), 0x1f2937, 0.9);
+      platform.root.position.y = 0.42;
+      capGroup.add(platform.root);
+
+      const railGeo = new THREE.BoxGeometry(3.7, 0.65, 3.9);
+      const railWire = new THREE.LineSegments(new THREE.EdgesGeometry(railGeo), new THREE.LineBasicMaterial({ color: 0xffb800 }));
+      railWire.position.y = 0.82;
+      capGroup.add(railWire);
+
+      for (let cx of [-0.85, 0.85]) {
+        for (let cz of [-0.8, 0.8]) {
+          const agc = createBlueprintComponent(new THREE.CylinderGeometry(0.25, 0.25, 1.3, 12), metalShiny, 0.85);
+          agc.root.position.set(cx, 1.1, cz);
+          capGroup.add(agc.root);
+        }
+      }
+
+      const headerCyl = createBlueprintComponent(new THREE.CylinderGeometry(0.35, 0.35, 3.2, 16), 0x475569, 0.8);
+      headerCyl.root.rotation.z = Math.PI / 2;
+      headerCyl.root.position.set(0, 0.85, 0);
+      capGroup.add(headerCyl.root);
+
+      millStandGroup.add(capGroup);
+
+      const duct1 = createBlueprintComponent(new THREE.BoxGeometry(0.7, 1.4, 0.7), 0x64748b, 0.8);
+      duct1.root.position.set(1.4, 5.2, 1.5);
+      millStandGroup.add(duct1.root);
+
+      const stairGeo = new THREE.BoxGeometry(0.2, 3.8, 0.5);
+      const stairMesh = createBlueprintComponent(stairGeo, 0x475569, 0.75);
+      stairMesh.root.rotation.z = -0.75;
+      stairMesh.root.position.set(2.2, 3.6, 1.5);
+      millStandGroup.add(stairMesh.root);
+
+      machine.add(millStandGroup);
+
+      const driveBaseGroup = new THREE.Group();
+      driveBaseGroup.position.set(-6.2, 0, 0);
+
+      const gearBox1 = new THREE.Group();
+      gearBox1.position.set(-1.6, 0, -0.6);
+
+      const gbBase1 = createBlueprintComponent(new THREE.BoxGeometry(2.4, 3.1, 2.0), steelDark, 0.9);
+      gbBase1.root.position.y = 1.55;
+      gearBox1.add(gbBase1.root);
+
+      const gbCap1 = createBlueprintComponent(new THREE.CylinderGeometry(0.8, 0.8, 2.1, 16, 1, false, 0, Math.PI), themeHex, 0.75);
+      gbCap1.root.rotation.z = Math.PI / 2;
+      gbCap1.root.position.set(0, 3.1, 0);
+      gearBox1.add(gbCap1.root);
+
+      const outFlange1 = createBlueprintComponent(new THREE.CylinderGeometry(0.38, 0.38, 0.35, 12), metalShiny, 0.9);
+      outFlange1.root.rotation.z = Math.PI / 2;
+      outFlange1.root.position.set(1.3, 3.5, 0.6);
+      gearBox1.add(outFlange1.root);
+
+      driveBaseGroup.add(gearBox1);
+
+      const gearBox2 = new THREE.Group();
+      gearBox2.position.set(0.6, 0, 0.6);
+
+      const gbBase2 = createBlueprintComponent(new THREE.BoxGeometry(2.3, 2.3, 1.9), steelDark, 0.9);
+      gbBase2.root.position.y = 1.15;
+      gearBox2.add(gbBase2.root);
+
+      const gbCap2 = createBlueprintComponent(new THREE.CylinderGeometry(0.75, 0.75, 2.0, 16, 1, false, 0, Math.PI), themeHex, 0.75);
+      gbCap2.root.rotation.z = Math.PI / 2;
+      gbCap2.root.position.set(0, 2.3, 0);
+      gearBox2.add(gbCap2.root);
+
+      const outFlange2 = createBlueprintComponent(new THREE.CylinderGeometry(0.36, 0.36, 0.35, 12), metalShiny, 0.9);
+      outFlange2.root.rotation.z = Math.PI / 2;
+      outFlange2.root.position.set(1.25, 2.7, -0.6);
+      gearBox2.add(outFlange2.root);
+
+      driveBaseGroup.add(gearBox2);
+      machine.add(driveBaseGroup);
+
+      const spindlesGroup = new THREE.Group();
+
+      const s1Start = new THREE.Vector3(-6.5, 3.5, 0);
+      const s1End = new THREE.Vector3(1.35, 3.5, 0);
+      const s1Len = s1Start.distanceTo(s1End);
+      const s1Mid = s1Start.clone().lerp(s1End, 0.5);
+
+      const shaft1 = createBlueprintComponent(new THREE.CylinderGeometry(0.18, 0.18, s1Len, 12), metalShiny, 0.85);
+      shaft1.root.position.copy(s1Mid);
+      shaft1.root.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), s1End.clone().sub(s1Start).normalize());
+      spindlesGroup.add(shaft1.root);
+
+      [-0.46, 0.46].forEach(ratio => {
+        const fPos = s1Start.clone().lerp(s1End, 0.5 + ratio);
+        const flange = createBlueprintComponent(new THREE.CylinderGeometry(0.32, 0.32, 0.28, 12), themeHex, 0.9);
+        flange.root.position.copy(fPos);
+        flange.root.quaternion.copy(shaft1.root.quaternion);
+        spindlesGroup.add(flange.root);
+      });
+
+      const s2Start = new THREE.Vector3(-4.35, 2.7, 0);
+      const s2End = new THREE.Vector3(1.35, 2.7, 0);
+      const s2Len = s2Start.distanceTo(s2End);
+      const s2Mid = s2Start.clone().lerp(s2End, 0.5);
+
+      const shaft2 = createBlueprintComponent(new THREE.CylinderGeometry(0.17, 0.17, s2Len, 12), metalShiny, 0.85);
+      shaft2.root.position.copy(s2Mid);
+      shaft2.root.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), s2End.clone().sub(s2Start).normalize());
+      spindlesGroup.add(shaft2.root);
+
+      [-0.45, 0.45].forEach(ratio => {
+        const fPos = s2Start.clone().lerp(s2End, 0.5 + ratio);
+        const flange = createBlueprintComponent(new THREE.CylinderGeometry(0.3, 0.3, 0.26, 12), themeHex, 0.9);
+        flange.root.position.copy(fPos);
+        flange.root.quaternion.copy(shaft2.root.quaternion);
+        spindlesGroup.add(flange.root);
+      });
+
+      [-2.6, -0.6].forEach(standX => {
+        const supportBase = createBlueprintComponent(new THREE.BoxGeometry(0.9, 1.4, 2.2), steelDark, 0.85);
+        supportBase.root.position.set(standX, 0.7, 0);
+        spindlesGroup.add(supportBase.root);
+
+        const pillar = createBlueprintComponent(new THREE.CylinderGeometry(0.12, 0.12, 2.2, 10), 0x64748b, 0.8);
+        pillar.root.position.set(standX, 2.1, 0);
+        spindlesGroup.add(pillar.root);
+      });
+
+      machine.add(spindlesGroup);
+
+      // HR2 3D 總合油箱
+      const hr2Tank = createSloshingOilReservoir("HR2", 0xffb800, 0x664400, 3.2, 2.6, 5.0, 0.75);
+      machine.add(hr2Tank);
+
+      const lubePipeCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(3.2, 1.5, 2.0),
+        new THREE.Vector3(2.8, 1.2, 1.0),
+        new THREE.Vector3(2.8, 1.8, 0)
+      ]);
+      const lubePipe = new THREE.Mesh(
+        new THREE.TubeGeometry(lubePipeCurve, 12, 0.08, 6, false),
+        new THREE.MeshStandardMaterial({ color: 0xffb800, metalness: 0.8, roughness: 0.2 })
+      );
+      machine.add(lubePipe);
+
+      const alertRing = new THREE.Mesh(
+        new THREE.RingGeometry(5.2, 5.8, 36),
+        new THREE.MeshBasicMaterial({ color: 0xff0055, side: THREE.DoubleSide, transparent: true, opacity: 0.0 })
+      );
+      alertRing.rotation.x = Math.PI / 2;
+      alertRing.position.y = 0.06;
+      machine.add(alertRing);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(12.5, 7.8, 6.2), new THREE.MeshBasicMaterial({ visible: false }));
+      hitBox.position.set(-1.0, 3.6, 0.2);
+      hitBox.userData = { code: "HR2", name: "粗軋機 (4子油箱全息合併)", themeHex: themeHex };
+      machine.add(hitBox);
+      interactiveHitBoxes.push(hitBox);
+
+      machineGroups["HR2"] = {
+        root: machine,
+        capGroups: [capGroup],
+        alertRing: alertRing,
+        baseY: 6.2,
+        targetCapY: 6.2,
+        themeHex: themeHex,
+        isOver: false
+      };
+
+      blueprintGroup.add(machine);
+    }
+
+    function buildHR3RealisticPlantTwin(centerX, centerZ) {
+      const plantGroup = new THREE.Group();
+      plantGroup.position.set(centerX, 0, centerZ);
+      const themeHex = 0xff0055;
+      const greenHousingColor = 0x22c55e;
+
+      const capGroupsList = [];
+
+      const mainFloor = createBlueprintComponent(new THREE.BoxGeometry(14.0, 0.35, 11.0), 0x0f172a, 0.7, false);
+      mainFloor.root.position.set(0, 0.17, 0);
+      plantGroup.add(mainFloor.root);
+
+      const enclosureGroup = new THREE.Group();
+      enclosureGroup.position.set(-1.2, 0, -0.5);
+
+      const encBox = createBlueprintComponent(new THREE.BoxGeometry(6.4, 2.8, 3.2), greenHousingColor, 0.65);
+      encBox.root.position.y = 1.75;
+      enclosureGroup.add(encBox.root);
+
+      const roofBox = createBlueprintComponent(new THREE.BoxGeometry(6.2, 0.45, 3.0), 0x15803d, 0.75);
+      roofBox.root.position.y = 3.35;
+      enclosureGroup.add(roofBox.root);
+
+      for (let i = 0; i < 4; i++) {
+        const winX = -2.1 + i * 1.4;
+        const win = createBlueprintComponent(new THREE.BoxGeometry(1.1, 1.5, 0.2), 0xffffff, 0.85);
+        win.root.position.set(winX, 1.3, 1.62);
+        enclosureGroup.add(win.root);
+
+        const innerStand = createSingleFourHighStand(themeHex, 0.58);
+        innerStand.root.position.set(winX, 0.35, 0);
+        innerStand.root.rotation.y = Math.PI / 2;
+        enclosureGroup.add(innerStand.root);
+        capGroupsList.push(innerStand.capGroup);
+      }
+      plantGroup.add(enclosureGroup);
+
+      const motorGroup = new THREE.Group();
+      motorGroup.position.set(-1.2, 0, -3.2);
+      for (let i = 0; i < 4; i++) {
+        const mX = -2.1 + i * 1.4;
+        const motorBox = createBlueprintComponent(new THREE.BoxGeometry(1.0, 1.3, 1.4), 0xf1f5f9, 0.8);
+        motorBox.root.position.set(mX, 1.0, 0);
+        motorGroup.add(motorBox.root);
+
+        const shaft = createBlueprintComponent(new THREE.CylinderGeometry(0.12, 0.12, 1.2, 10), 0x94a3b8, 0.7);
+        shaft.root.rotation.x = Math.PI / 2;
+        shaft.root.position.set(mX, 0.8, 1.3);
+        motorGroup.add(shaft.root);
+      }
+      plantGroup.add(motorGroup);
+
+      const ductGroup = new THREE.Group();
+      const chimney = createBlueprintComponent(new THREE.CylinderGeometry(0.65, 0.75, 7.5, 16), 0xe2e8f0, 0.75);
+      chimney.root.position.set(4.2, 3.75, -3.8);
+      ductGroup.add(chimney.root);
+
+      const catwalk = createBlueprintComponent(new THREE.TorusGeometry(0.95, 0.05, 6, 24), 0xffb800, 0.9);
+      catwalk.root.rotation.x = Math.PI / 2;
+      catwalk.root.position.set(4.2, 6.2, -3.8);
+      ductGroup.add(catwalk.root);
+
+      const ductCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-1.2, 3.4, -0.5),
+        new THREE.Vector3(1.5, 3.6, -1.8),
+        new THREE.Vector3(3.2, 3.8, -2.8),
+        new THREE.Vector3(4.2, 4.2, -3.8)
+      ]);
+      const ductTube = new THREE.Mesh(
+        new THREE.TubeGeometry(ductCurve, 16, 0.42, 8, false),
+        new THREE.MeshStandardMaterial({ color: 0xcfd8dc, metalness: 0.7, roughness: 0.3, transparent: true, opacity: 0.75 })
+      );
+      ductGroup.add(ductTube);
+      plantGroup.add(ductGroup);
+
+      const runoutTable = new THREE.Group();
+      const inLine = createBlueprintComponent(new THREE.BoxGeometry(3.5, 0.3, 0.9), 0x475569, 0.8);
+      inLine.root.position.set(-6.2, 0.5, -0.5);
+      runoutTable.add(inLine.root);
+
+      const outLine = createBlueprintComponent(new THREE.BoxGeometry(4.0, 0.3, 0.9), 0x475569, 0.8);
+      outLine.root.position.set(3.8, 0.5, -0.5);
+      runoutTable.add(outLine.root);
+      plantGroup.add(runoutTable);
+
+      const coilerGroup = new THREE.Group();
+      coilerGroup.position.set(3.2, 0, 2.2);
+
+      for (let cIdx of [-1.2, 1.2]) {
+        const coilerBase = createBlueprintComponent(new THREE.BoxGeometry(1.2, 0.8, 1.4), 0xffb800, 0.85);
+        coilerBase.root.position.set(cIdx, 0.6, 0);
+        coilerGroup.add(coilerBase.root);
+
+        const coilGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.8, 16);
+        const coilMesh = createBlueprintComponent(coilGeo, 0xffffff, 0.9);
+        coilMesh.root.rotation.z = Math.PI / 2;
+        coilMesh.root.position.set(cIdx, 1.1, 1.2);
+        coilerGroup.add(coilMesh.root);
+      }
+      plantGroup.add(coilerGroup);
+
+      const fenceCurve = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-4.8, 0.6, 2.2), new THREE.Vector3(1.8, 0.6, 2.2),
+        new THREE.Vector3(1.8, 0.6, 4.2), new THREE.Vector3(5.8, 0.6, 4.2),
+        new THREE.Vector3(5.8, 0.6, -1.8)
+      ]);
+      const fenceLine = new THREE.Line(fenceCurve, new THREE.LineBasicMaterial({ color: 0xffb800 }));
+      plantGroup.add(fenceLine);
+
+      const hr3Tank = createSloshingOilReservoir("HR3", 0xff0055, 0x660022, 5.8, -1.2, 5.0, 0.75);
+      plantGroup.add(hr3Tank);
+
+      const alertRing = new THREE.Mesh(
+        new THREE.RingGeometry(7.2, 7.8, 40),
+        new THREE.MeshBasicMaterial({ color: 0xff0055, side: THREE.DoubleSide, transparent: true, opacity: 0.0 })
+      );
+      alertRing.rotation.x = Math.PI / 2;
+      alertRing.position.y = 0.06;
+      plantGroup.add(alertRing);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(14.8, 7.5, 11.8), new THREE.MeshBasicMaterial({ visible: false }));
+      hitBox.position.y = 3.6;
+      hitBox.userData = { code: "HR3", name: "熱精軋機 (AUX / Push-UP)", themeHex: themeHex };
+      plantGroup.add(hitBox);
+      interactiveHitBoxes.push(hitBox);
+
+      machineGroups["HR3"] = {
+        root: plantGroup,
+        capGroups: capGroupsList,
+        alertRing: alertRing,
+        baseY: 4.6 * 0.58,
+        targetCapY: 4.6 * 0.58,
+        themeHex: themeHex,
+        isOver: false
+      };
+
+      blueprintGroup.add(plantGroup);
+    }
+
+    function buildDetailedCR5ColdMill(x, z) {
+      const machine = new THREE.Group();
+      machine.position.set(x, 0, z);
+      const themeHex = 0x10b981;
+
+      const millGroup = new THREE.Group();
+      millGroup.position.set(-1.8, 0, 0);
+
+      const basePlate = createBlueprintComponent(new THREE.BoxGeometry(2.4, 0.35, 2.8), 0x1e293b, 0.85);
+      basePlate.root.position.y = 0.18;
+      millGroup.add(basePlate.root);
+
+      for (let bpX of [-0.9, 0.9]) {
+        for (let bpZ of [-1.1, 1.1]) {
+          const bolt = createBlueprintComponent(new THREE.CylinderGeometry(0.12, 0.12, 0.45, 8), 0xff0055, 0.9);
+          bolt.root.position.set(bpX, 0.35, bpZ);
+          millGroup.add(bolt.root);
+        }
+      }
+
+      for (let colX of [-0.85, 0.85]) {
+        const col = createBlueprintComponent(new THREE.BoxGeometry(0.42, 4.4, 1.9), themeHex, 0.65);
+        col.root.position.set(colX, 2.45, 0);
+        millGroup.add(col.root);
+
+        const liner = createBlueprintComponent(new THREE.BoxGeometry(0.46, 3.2, 1.2), 0x0f172a, 0.5);
+        liner.root.position.set(colX, 2.45, 0);
+        millGroup.add(liner.root);
+      }
+
+      const capGroup = new THREE.Group();
+      capGroup.position.set(0, 4.75, 0);
+      const topCap = createBlueprintComponent(new THREE.BoxGeometry(2.2, 0.55, 2.0), themeHex, 0.75);
+      capGroup.add(topCap.root);
+
+      for (let xOff of [-0.55, 0.55]) {
+        const agc = createBlueprintComponent(new THREE.CylinderGeometry(0.25, 0.25, 0.85, 12), 0xe2e8f0, 0.85);
+        agc.root.position.set(xOff, 0.6, 0);
+        capGroup.add(agc.root);
+
+        const piston = createBlueprintComponent(new THREE.CylinderGeometry(0.18, 0.18, 0.6, 12), 0xffb800, 0.9);
+        piston.root.position.set(xOff, 0.15, 0);
+        capGroup.add(piston.root);
+      }
+      millGroup.add(capGroup);
+
+      const rollsGroup = new THREE.Group();
+      rollsGroup.position.set(0, 2.45, 0);
+
+      const rollLength = 1.95;
+      const burRadius = 0.46;
+      const wrRadius = 0.22;
+
+      function createAlignedIndustrialRoller(radius, yPos, isWorkRoll = false) {
+        const rNode = new THREE.Group();
+        rNode.position.set(0, yPos, 0);
+
+        const cylGeo = new THREE.CylinderGeometry(radius, radius, rollLength, 16);
+        cylGeo.rotateZ(Math.PI / 2);
+        const rollMat = new THREE.MeshPhongMaterial({
+          color: isWorkRoll ? 0xe2e8f0 : 0x94a3b8,
+          emissive: isWorkRoll ? 0x00f0ff : 0x064e3b,
+          emissiveIntensity: 0.35,
+          shininess: 90,
+          transparent: true,
+          opacity: 0.85
+        });
+        const rollerMesh = new THREE.Mesh(cylGeo, rollMat);
+        const edges = new THREE.EdgesGeometry(cylGeo, 20);
+        rollerMesh.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })));
+        rNode.add(rollerMesh);
+
+        for (let cx of [-0.85, 0.85]) {
+          const chock = createBlueprintComponent(new THREE.BoxGeometry(0.28, radius * 1.85, 0.72), themeHex, 0.6);
+          chock.root.position.set(cx, 0, 0);
+          rNode.add(chock.root);
+        }
+
+        const neck = createBlueprintComponent(new THREE.CylinderGeometry(radius * 0.58, radius * 0.58, 0.5, 12), 0xd97706, 0.85);
+        neck.root.rotation.z = Math.PI / 2;
+        neck.root.position.set(1.15, 0, 0);
+        rNode.add(neck.root);
+
+        rollsGroup.add(rNode);
+        return rNode;
+      }
+
+      createAlignedIndustrialRoller(burRadius, 1.24, false);
+      createAlignedIndustrialRoller(wrRadius, 0.45, true);
+      
+      const strip = createBlueprintComponent(new THREE.BoxGeometry(1.5, 0.04, 3.6), 0xff0055, 0.85, true);
+      strip.root.position.set(0, 0, 0);
+      rollsGroup.add(strip.root);
+
+      createAlignedIndustrialRoller(wrRadius, -0.45, true);
+      createAlignedIndustrialRoller(burRadius, -1.24, false);
+
+      millGroup.add(rollsGroup);
+
+      const guideEntry = createBlueprintComponent(new THREE.BoxGeometry(1.6, 0.25, 1.4), 0x334155, 0.7);
+      guideEntry.root.position.set(0, 2.3, -1.8);
+      millGroup.add(guideEntry.root);
+
+      machine.add(millGroup);
+
+      const driveGroup = new THREE.Group();
+      driveGroup.position.set(0.6, 0, 0);
+
+      for (let sY of [-0.45, 0.45]) {
+        const spindleGroup = new THREE.Group();
+        spindleGroup.position.set(0, 2.45 + sY, 0);
+
+        const uJoint1 = createBlueprintComponent(new THREE.CylinderGeometry(0.24, 0.24, 0.35, 12), 0xd97706, 0.9);
+        uJoint1.root.rotation.z = Math.PI / 2;
+        uJoint1.root.position.set(-0.8, 0, 0);
+        spindleGroup.add(uJoint1.root);
+
+        const shaft = createBlueprintComponent(new THREE.CylinderGeometry(0.14, 0.14, 1.4, 12), 0x94a3b8, 0.8);
+        shaft.root.rotation.z = Math.PI / 2;
+        shaft.root.position.set(0, 0, 0);
+        spindleGroup.add(shaft.root);
+
+        const uJoint2 = createBlueprintComponent(new THREE.CylinderGeometry(0.24, 0.24, 0.35, 12), 0xd97706, 0.9);
+        uJoint2.root.rotation.z = Math.PI / 2;
+        uJoint2.root.position.set(0.8, 0, 0);
+        spindleGroup.add(uJoint2.root);
+
+        driveGroup.add(spindleGroup);
+      }
+
+      const pinionGroup = new THREE.Group();
+      pinionGroup.position.set(1.7, 2.45, 0);
+      const pinionBox = createBlueprintComponent(new THREE.BoxGeometry(0.9, 2.0, 1.4), 0x334155, 0.8);
+      pinionGroup.add(pinionBox.root);
+
+      const pinionFlange1 = createBlueprintComponent(new THREE.CylinderGeometry(0.28, 0.28, 0.15, 12), 0xffb800, 0.9);
+      pinionFlange1.root.rotation.z = Math.PI / 2;
+      pinionFlange1.root.position.set(-0.48, 0.45, 0);
+      pinionGroup.add(pinionFlange1.root);
+
+      const pinionFlange2 = createBlueprintComponent(new THREE.CylinderGeometry(0.28, 0.28, 0.15, 12), 0xffb800, 0.9);
+      pinionFlange2.root.rotation.z = Math.PI / 2;
+      pinionFlange2.root.position.set(-0.48, -0.45, 0);
+      pinionGroup.add(pinionFlange2.root);
+      driveGroup.add(pinionGroup);
+
+      const leadSpindleGroup = new THREE.Group();
+      leadSpindleGroup.position.set(2.6, 2.45, 0);
+      const leadShaft = createBlueprintComponent(new THREE.CylinderGeometry(0.22, 0.22, 0.85, 12), 0x94a3b8, 0.85);
+      leadShaft.root.rotation.z = Math.PI / 2;
+      leadShaft.root.position.set(0, 0, 0);
+      leadSpindleGroup.add(leadShaft.root);
+
+      const leadCoupling = createBlueprintComponent(new THREE.CylinderGeometry(0.38, 0.38, 0.3, 12), 0x0284c7, 0.9);
+      leadCoupling.root.rotation.z = Math.PI / 2;
+      leadCoupling.root.position.set(0, 0, 0);
+      leadSpindleGroup.add(leadCoupling.root);
+      driveGroup.add(leadSpindleGroup);
+
+      const reducerGroup = new THREE.Group();
+      reducerGroup.position.set(3.7, 2.2, 0);
+      const reducerBox = createBlueprintComponent(new THREE.BoxGeometry(1.3, 2.2, 1.8), 0x1e293b, 0.85);
+      reducerGroup.add(reducerBox.root);
+
+      const cov = createBlueprintComponent(new THREE.CylinderGeometry(0.35, 0.35, 0.1, 12), 0xd97706, 0.9);
+      cov.root.rotation.z = Math.PI / 2;
+      cov.root.position.set(-0.66, 0.45, 0);
+      reducerGroup.add(cov.root);
+
+      const redBase = createBlueprintComponent(new THREE.BoxGeometry(1.5, 0.6, 2.0), 0x0f172a, 0.9);
+      redBase.root.position.y = -1.1;
+      reducerGroup.add(redBase.root);
+      driveGroup.add(reducerGroup);
+
+      const motorGroup = new THREE.Group();
+      motorGroup.position.set(4.9, 2.2, 0);
+      const motorBody = createBlueprintComponent(new THREE.CylinderGeometry(0.65, 0.65, 1.2, 16), 0x0369a1, 0.8);
+      motorBody.root.rotation.z = Math.PI / 2;
+      motorGroup.add(motorBody.root);
+
+      const motorBox = createBlueprintComponent(new THREE.BoxGeometry(0.8, 0.5, 0.8), 0x0284c7, 0.9);
+      motorBox.root.position.set(0, 0.7, 0);
+      motorGroup.add(motorBox.root);
+
+      const motorBase = createBlueprintComponent(new THREE.BoxGeometry(1.2, 0.7, 1.4), 0x0f172a, 0.9);
+      motorBase.root.position.y = -0.95;
+      motorGroup.add(motorBase.root);
+      driveGroup.add(motorGroup);
+
+      machine.add(driveGroup);
+
+      const cr5Tank = createSloshingOilReservoir("CR5", 0x10b981, 0x047857, -2.2, 3.4, 4.8, 0.72);
+      machine.add(cr5Tank);
+
+      const pipeCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-2.2, 1.8, 2.6),
+        new THREE.Vector3(-2.2, 1.2, 1.2),
+        new THREE.Vector3(-1.8, 1.0, 0.5)
+      ]);
+      const pipeMesh = new THREE.Mesh(
+        new THREE.TubeGeometry(pipeCurve, 12, 0.08, 6, false),
+        new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x064e3b, emissiveIntensity: 0.4, metalness: 0.7 })
+      );
+      machine.add(pipeMesh);
+
+      const alertRing = new THREE.Mesh(
+        new THREE.RingGeometry(4.5, 4.9, 36),
+        new THREE.MeshBasicMaterial({ color: 0xff0055, side: THREE.DoubleSide, transparent: true, opacity: 0.0 })
+      );
+      alertRing.rotation.x = Math.PI / 2;
+      alertRing.position.y = 0.06;
+      machine.add(alertRing);
+
+      const hitBox = new THREE.Mesh(new THREE.BoxGeometry(10.0, 6.4, 6.5), new THREE.MeshBasicMaterial({ visible: false }));
+      hitBox.position.set(1.4, 2.8, 0.8);
+      hitBox.userData = { code: "CR5", name: "冷軋機 (AGC/BEND/中壓)", themeHex: themeHex };
+      machine.add(hitBox);
+      interactiveHitBoxes.push(hitBox);
+
+      machineGroups["CR5"] = {
+        root: machine,
+        capGroups: [capGroup],
+        alertRing: alertRing,
+        baseY: 4.75,
+        targetCapY: 4.75,
+        themeHex: themeHex,
+        isOver: false
+      };
+
+      blueprintGroup.add(machine);
+    }
+
+    function buildFloatingParticles() {
+      const particleCount = 600;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      const colors = new Float32Array(particleCount * 3);
+      particleData = [];
+
+      const minGray = 0.15;
+      const maxGray = 0.58;
+
+      for (let i = 0; i < particleCount; i++) {
+        const x = (Math.random() - 0.5) * 54;
+        const y = Math.random() * 14;
+        const z = (Math.random() - 0.5) * 36;
+
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+
+        const initGray = minGray + Math.random() * (maxGray - minGray);
+        colors[i * 3] = initGray;
+        colors[i * 3 + 1] = initGray;
+        colors[i * 3 + 2] = initGray;
+
+        particleData.push({
+          baseX: x,
+          baseZ: z,
+          speedY: 0.003 + Math.random() * 0.006,
+          swaySpeed: 0.3 + Math.random() * 0.5,
+          swayRadius: 0.1 + Math.random() * 0.25,
+          phase: Math.random() * Math.PI * 2,
+          flickerSpeed: 1.5 + Math.random() * 2.5,
+          flickerPhase: Math.random() * Math.PI * 2,
+          minBrightness: minGray,
+          maxBrightness: maxGray
+        });
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const material = new THREE.PointsMaterial({
+        size: 0.085,
+        sizeAttenuation: true,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.8,
+        depthWrite: false
+      });
+
+      particleSystem = new THREE.Points(geometry, material);
+      blueprintGroup.add(particleSystem);
+    }
+
+    function onPointerDown(e) {
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+      pointerDownTime = Date.now();
+      isTransitioningCamera = false;
+    }
+
+    function onPointerMove(e) {
+      const container = document.getElementById('three-container');
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      mouseVec.x = (x / container.clientWidth) * 2 - 1;
+      mouseVec.y = - (y / container.clientHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouseVec, camera);
+      const intersects = raycaster.intersectObjects(interactiveHitBoxes);
+      const tooltip = document.getElementById('tooltip-3d');
+      const detailsEl = document.getElementById('tooltip-details');
+
+      if (intersects.length > 0) {
+        const hit = intersects[0].object.userData;
+        const code = hit.code;
+
+        if (hoveredEquip !== code) {
+          hoveredEquip = code;
+          for (let k in machineGroups) {
+            machineGroups[k].targetCapY = (k === code) ? (machineGroups[k].baseY + 1.6) : machineGroups[k].baseY;
+          }
+        }
+
+        const mVol = getCurrentMonthEquipVol(code);
+        const limit = thresholds.monthly[code] || 900;
+        const isOver = mVol > limit;
+
+        document.getElementById('tooltip-title').innerText = `${code} ${hit.name}`;
+        document.getElementById('tooltip-vol').innerText = `當月累計總加油: ${mVol.toFixed(1)} / ${limit} L`;
+        document.getElementById('tooltip-height').innerText = `儲槽全息油位: ${mVol.toFixed(1)} L (合併統計)`;
+
+        detailsEl.classList.remove('hidden');
+        if (code === 'HR2') {
+          const s = getSubTankStats('HR2');
+          detailsEl.innerHTML = `
+            <div class="grid grid-cols-2 gap-x-2 text-[10px]">
+              <span>NO.1主箱: <b class="text-white">${s.NO1.toFixed(1)}L</b></span>
+              <span>NO.2輔箱: <b class="text-white">${s.NO2.toFixed(1)}L</b></span>
+              <span>AGC厚度: <b class="text-white">${s.AGC.toFixed(1)}L</b></span>
+              <span>HGC壓下: <b class="text-white">${s.HGC.toFixed(1)}L</b></span>
+            </div>
+          `;
+        } else if (code === 'HR3') {
+          const s = getSubTankStats('HR3');
+          detailsEl.innerHTML = `
+            <div class="grid grid-cols-2 gap-x-2 text-[10px]">
+              <span>AUX輔助: <b class="text-white">${s.AUX.toFixed(1)}L</b></span>
+              <span>Push-UP: <b class="text-white">${s.PUSHUP.toFixed(1)}L</b></span>
+            </div>
+          `;
+        } else if (code === 'CR5') {
+          const s = getSubTankStats('CR5');
+          detailsEl.innerHTML = `
+            <div class="grid grid-cols-3 gap-x-1.5 text-[10px]">
+              <span>AGC: <b class="text-white">${s.AGC.toFixed(1)}L</b></span>
+              <span>BEND: <b class="text-white">${s.BENDING.toFixed(1)}L</b></span>
+              <span>中壓: <b class="text-white">${s.MID.toFixed(1)}L</b></span>
+            </div>
+          `;
+        }
+
+        document.getElementById('tooltip-status').innerHTML = isOver
+          ? `<span class="text-rose-400">⚠️ 警戒：已超出月度限額！</span>`
+          : `<span class="text-emerald-400">● 點擊機台反向篩選明細表格</span>`;
+
+        tooltip.style.left = `${Math.min(x + 15, container.clientWidth - 260)}px`;
+        tooltip.style.top = `${Math.max(y - 75, 10)}px`;
+        tooltip.style.opacity = '1';
+      } else {
+        if (hoveredEquip) {
+          for (let k in machineGroups) {
+            machineGroups[k].targetCapY = machineGroups[k].baseY;
+          }
+          hoveredEquip = null;
+        }
+        tooltip.style.opacity = '0';
+      }
+    }
+
+    function onPointerUp(e) {
+      const dx = Math.abs(e.clientX - pointerDownPos.x);
+      const dy = Math.abs(e.clientY - pointerDownPos.y);
+      const dt = Date.now() - pointerDownTime;
+
+      if (dx < 5 && dy < 5 && dt < 300) {
+        if (hoveredEquip) {
+          // 點擊 3D 模型時，自動清空關鍵字以便完整篩選該機台
+          clearSearchInput(false);
+          focusMachineView(hoveredEquip);
+          setFilterChip(hoveredEquip);
+          setPieEquip(hoveredEquip);
+          showToast(`已鎖定 ${hoveredEquip} 機台，關鍵字已清空並同步焦點高亮！`, 'info');
+        }
+      }
+    }
+
+    function onBlueprintMouseLeave() {
+      for (let k in machineGroups) {
+        machineGroups[k].targetCapY = machineGroups[k].baseY;
+      }
+      document.getElementById('tooltip-3d').style.opacity = '0';
+    }
+
+    function reset3DCamera() {
+      targetCameraPos.copy(DEFAULT_CAMERA_POS);
+      targetLookAt.copy(DEFAULT_LOOK_AT);
+      isTransitioningCamera = true;
+    }
+
+    function focusMachineView(code) {
+      const realCode = code.startsWith('HR2') ? 'HR2' : (code.startsWith('HR3') ? 'HR3' : (code.startsWith('CR5') ? 'CR5' : code));
+      if (machineGroups[realCode]) {
+        const targetMach = machineGroups[realCode].root;
+        targetCameraPos.set(targetMach.position.x, 14, targetMach.position.z + 18);
+        targetLookAt.set(targetMach.position.x, 3.2, targetMach.position.z);
+        isTransitioningCamera = true;
+
+        if (reservoirTanks[realCode]) {
+          const tObj = reservoirTanks[realCode];
+          tObj.currentHeight = 0.05;
+          tObj.isRefilling = true;
+          tObj.refillProgress = 0.0;
+          tObj.sloshEnergy = 0.28;
+        }
+      }
+    }
+
+    function getCurrentMonthEquipVol(code) {
+      const latestMonth = getLatestMonth();
+      return records
+        .filter(r => (r.equipCode || "").toUpperCase() === code && getRecordMonth(r.date) === latestMonth)
+        .reduce((sum, r) => sum + (parseFloat(r.volume) || 0), 0);
+    }
+
+    // ==========================================================
+    // 動畫循環渲染
+    // ==========================================================
+    function animateBlueprint(timestamp) {
+      requestAnimationFrame(animateBlueprint);
+
+      const delta = timestamp - lastRenderTime;
+      if (delta < FRAME_INTERVAL) return;
+      lastRenderTime = timestamp - (delta % FRAME_INTERVAL);
+
+      const time = timestamp * 0.001;
+
+      if (isTransitioningCamera) {
+        camera.position.lerp(targetCameraPos, 0.09);
+        controls.target.lerp(targetLookAt, 0.09);
+        if (camera.position.distanceTo(targetCameraPos) < 0.15 && controls.target.distanceTo(targetLookAt) < 0.15) {
+          isTransitioningCamera = false;
+        }
+      }
+
+      controls.update();
+
+      if (particleSystem) {
+        particleSystem.rotation.y += 0.0004;
+
+        const positions = particleSystem.geometry.attributes.position.array;
+        const colors = particleSystem.geometry.attributes.color.array;
+
+        for (let i = 0; i < particleData.length; i++) {
+          const p = particleData[i];
+
+          positions[i * 3 + 1] += p.speedY;
+          if (positions[i * 3 + 1] > 13) positions[i * 3 + 1] = 0.2;
+
+          positions[i * 3] = p.baseX + Math.sin(time * p.swaySpeed + p.phase) * p.swayRadius;
+          positions[i * 3 + 2] = p.baseZ + Math.cos(time * p.swaySpeed + p.phase) * p.swayRadius;
+
+          const normalFactor = 0.5 + 0.5 * Math.sin(time * p.flickerSpeed + p.flickerPhase);
+          const currentGray = p.minBrightness + normalFactor * (p.maxBrightness - p.minBrightness);
+
+          colors[i * 3]     = currentGray;
+          colors[i * 3 + 1] = currentGray;
+          colors[i * 3 + 2] = currentGray;
+        }
+
+        particleSystem.geometry.attributes.position.needsUpdate = true;
+        particleSystem.geometry.attributes.color.needsUpdate = true;
+      }
+
+      for (let k in reservoirTanks) {
+        const tObj = reservoirTanks[k];
+        const mVol = getCurrentMonthEquipVol(k);
+        const limit = thresholds.monthly[k] || 900;
+        
+        const simVol = mVol + simulationAddLiters;
+        const fillRatio = Math.max(Math.min(simVol / limit, 1.0), 0.06);
+        tObj.actualTargetHeight = fillRatio * tObj.maxHeight;
+
+        if (tObj.isRefilling) {
+          tObj.refillProgress += 0.024;
+          tObj.currentHeight = THREE.MathUtils.lerp(0.05, tObj.actualTargetHeight, tObj.refillProgress);
+          tObj.sloshEnergy = THREE.MathUtils.lerp(tObj.sloshEnergy, 0.22, 0.05);
+
+          if (tObj.refillProgress >= 1.0) {
+            tObj.isRefilling = false;
+            tObj.currentHeight = tObj.actualTargetHeight;
+          }
+        } else {
+          tObj.currentHeight = THREE.MathUtils.lerp(tObj.currentHeight, tObj.actualTargetHeight, 0.1);
+          tObj.sloshEnergy = THREE.MathUtils.lerp(tObj.sloshEnergy, 0.035, 0.025);
+        }
+
+        tObj.oilCylinder.scale.y = tObj.currentHeight;
+        tObj.oilCylinder.position.y = tObj.currentHeight / 2;
+
+        tObj.wavePhase += 0.05;
+        const waveX = Math.sin(time * 3.5 + tObj.wavePhase) * tObj.sloshEnergy;
+        const waveZ = Math.cos(time * 2.8 + tObj.wavePhase) * (tObj.sloshEnergy * 0.85);
+
+        tObj.waveSurface.position.y = tObj.currentHeight;
+        tObj.waveSurface.rotation.x = -Math.PI / 2 + waveX;
+        tObj.waveSurface.rotation.z = waveZ;
+
+        tObj.bubbles.forEach(b => {
+          b.mesh.position.y += b.speed * (tObj.isRefilling ? 3.0 : 1.0);
+          if (b.mesh.position.y >= tObj.currentHeight) b.mesh.position.y = 0.05;
+          b.mesh.position.x = Math.cos(b.angle + time * 1.5) * b.dist;
+          b.mesh.position.z = Math.sin(b.angle + time * 1.5) * b.dist;
+        });
+      }
+
+      for (let k in machineGroups) {
+        const item = machineGroups[k];
+        item.capGroups.forEach(cg => {
+          cg.position.y = THREE.MathUtils.lerp(cg.position.y, item.targetCapY, 0.15);
+        });
+
+        if (item.isOver) {
+          item.alertRing.material.opacity = 0.6 + Math.sin(Date.now() * 0.008) * 0.4;
+        } else {
+          item.alertRing.material.opacity = 0.0;
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('three-container');
+      if (!container) return;
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    // ==========================================
+    // 業務運算邏輯與跑數字動畫
+    // ==========================================
+    function animateValue(elemId, start, end, duration, decimals = 1) {
+      const obj = document.getElementById(elemId);
+      if (!obj) return;
+      let startTimestamp = null;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const current = progress * (end - start) + start;
+        obj.innerHTML = current.toFixed(decimals);
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        } else {
+          obj.innerHTML = end.toFixed(decimals);
+        }
+      };
+      window.requestAnimationFrame(step);
+    }
+
+    function updateAll() {
+      localStorage.setItem('cyber_oil_records_cache', JSON.stringify(records));
+
+      document.getElementById('single-limit-disp').innerText = thresholds.singleLimit;
+      document.getElementById('kpi-single-limit-label').innerText = thresholds.singleLimit;
+
+      renderTable();
+      renderKPIsAndThresholdBars();
+      renderCharts();
+      initHeatmapControls();
+      renderHeatmap();
+      renderScatterChart();
+      renderParetoChart();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderKPIsAndThresholdBars() {
+      const latestMonth = getLatestMonth();
+
+      document.getElementById('cycle-month').innerText = latestMonth;
+      document.getElementById('kpi-current-month-date').innerHTML = `<span>統計月份：${latestMonth}</span><span class="text-pink-400 font-bold">下鑽檢視 &gt;</span>`;
+
+      const totalVol = records.reduce((s, r) => s + (parseFloat(r.volume) || 0), 0);
+      animateValue('kpi-total', 0, totalVol, 600, 1);
+
+      const monthVol = records
+        .filter(r => getRecordMonth(r.date) === latestMonth)
+        .reduce((s, r) => s + (parseFloat(r.volume) || 0), 0);
+      animateValue('kpi-current-month', 0, monthVol, 600, 1);
+
+      const singleAlerts = records.filter(r => {
+        const v = parseFloat(r.volume) || 0;
+        const lim = parseFloat(r.singleLimit) || thresholds.singleLimit;
+        return v > lim;
+      }).length;
+      animateValue('kpi-single-alerts', 0, singleAlerts, 500, 0);
+
+      const equipMonthSums = { HR2: 0, HR3: 0, CR5: 0 };
+      records
+        .filter(r => getRecordMonth(r.date) === latestMonth)
+        .forEach(r => {
+          const code = (r.equipCode || "").toUpperCase();
+          if (equipMonthSums[code] !== undefined) {
+            equipMonthSums[code] += (parseFloat(r.volume) || 0);
+          }
+        });
+
+      let topEquip = "--", maxVal = -1;
+      for (const [code, val] of Object.entries(equipMonthSums)) {
+        if (val > maxVal) { maxVal = val; topEquip = code; }
+      }
+      document.getElementById('kpi-top-equip').innerText = maxVal > 0 ? topEquip : "--";
+      document.getElementById('kpi-top-equip-val').innerHTML = `<span>耗量: ${maxVal > 0 ? maxVal.toFixed(1) : 0} L</span><span class="text-amber-300 font-bold">3D聚焦 &gt;</span>`;
+
+      // HR2
+      const hr2Stats = getSubTankStats('HR2', latestMonth);
+      const hr2Lims = thresholds.hr2SubLimits;
+      const setHR2SubUI = (key, val, limit) => {
+        document.getElementById(`val-hr2-${key}`).innerText = `${val.toFixed(1)} L`;
+        const pct = Math.min(Math.round((val / limit) * 100), 100);
+        document.getElementById(`bar-hr2-${key}`).style.width = `${pct}%`;
+      };
+      setHR2SubUI('no1', hr2Stats.NO1, hr2Lims.NO1);
+      setHR2SubUI('no2', hr2Stats.NO2, hr2Lims.NO2);
+      setHR2SubUI('agc', hr2Stats.AGC, hr2Lims.AGC);
+      setHR2SubUI('hgc', hr2Stats.HGC, hr2Lims.HGC);
+
+      // HR3
+      const hr3Stats = getSubTankStats('HR3', latestMonth);
+      const hr3Lims = thresholds.hr3SubLimits;
+      document.getElementById('val-hr3-aux').innerText = `${hr3Stats.AUX.toFixed(1)} L`;
+      document.getElementById('bar-hr3-aux').style.width = `${Math.min(Math.round((hr3Stats.AUX / hr3Lims.AUX) * 100), 100)}%`;
+      document.getElementById('val-hr3-pushup').innerText = `${hr3Stats.PUSHUP.toFixed(1)} L`;
+      document.getElementById('bar-hr3-pushup').style.width = `${Math.min(Math.round((hr3Stats.PUSHUP / hr3Lims.PUSHUP) * 100), 100)}%`;
+
+      // CR5
+      const cr5Stats = getSubTankStats('CR5', latestMonth);
+      const cr5Lims = thresholds.cr5SubLimits;
+      document.getElementById('val-cr5-agc').innerText = `${cr5Stats.AGC.toFixed(1)} L`;
+      document.getElementById('bar-cr5-agc').style.width = `${Math.min(Math.round((cr5Stats.AGC / cr5Lims.AGC) * 100), 100)}%`;
+      document.getElementById('val-cr5-bending').innerText = `${cr5Stats.BENDING.toFixed(1)} L`;
+      document.getElementById('bar-cr5-bending').style.width = `${Math.min(Math.round((cr5Stats.BENDING / cr5Lims.BENDING) * 100), 100)}%`;
+      document.getElementById('val-cr5-mid').innerText = `${cr5Stats.MID.toFixed(1)} L`;
+      document.getElementById('bar-cr5-mid').style.width = `${Math.min(Math.round((cr5Stats.MID / cr5Lims.MID) * 100), 100)}%`;
+
+      let anyOver = false;
+
+      ["HR2", "HR3", "CR5"].forEach(code => {
+        const mVol = equipMonthSums[code] || 0;
+        const simVol = mVol + simulationAddLiters;
+        const limit = thresholds.monthly[code] || 1;
+        const pct = Math.min(Math.round((simVol / limit) * 100), 100);
+
+        document.getElementById(`val-${code}`).innerText = simVol.toFixed(1);
+        document.getElementById(`limit-${code}`).innerText = limit;
+        document.getElementById(`bar-${code}`).style.width = `${pct}%`;
+
+        const block = document.getElementById(`block-${code}`);
+        const badge = document.getElementById(`badge-${code}`);
+
+        if (simVol > limit) {
+          anyOver = true;
+          block.classList.add("border-pink-500/40", "bg-pink-950/20");
+          badge.className = "text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/40 font-bold animate-pulse";
+          badge.innerText = `⚠️ 超標 (> ${limit}L)`;
+          if (machineGroups[code]) machineGroups[code].isOver = true;
+          if (reservoirTanks[code]) {
+            reservoirTanks[code].oilCylinder.material.color.setHex(0xff0055);
+          }
+        } else {
+          block.classList.remove("border-pink-500/40", "bg-pink-950/20");
+          badge.className = "text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20";
+          badge.innerText = `使用率 ${pct}%`;
+          if (machineGroups[code]) machineGroups[code].isOver = false;
+          if (reservoirTanks[code]) {
+            const hex = (code === 'HR2') ? 0xffb800 : (code === 'HR3' ? 0xff0055 : 0x10b981);
+            reservoirTanks[code].oilCylinder.material.color.setHex(hex);
+          }
+        }
+      });
+
+      const hudBadge = document.getElementById('three-alert-badge');
+      if (anyOver) {
+        hudBadge.className = "px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/50 text-xs font-mono-tech text-rose-300 flex items-center gap-1.5 shadow-[0_0_12px_#ff0055]";
+        hudBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span> 儲油桶警戒：機組油位超標！`;
+      } else {
+        hudBadge.className = "px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/40 text-xs font-mono-tech text-cyan-300 flex items-center gap-1.5";
+        hudBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span> 全息廠區沙盤：監控中`;
+      }
+    }
+
+    // ==========================================
+    // 互動篩選、排序、分頁與表格渲染 (已全面加入清空關鍵字)
+    // ==========================================
+    function setFilterChip(chip) {
+      // 點擊任何快篩 Chip 時，自動清空輸入框關鍵字，防止被雙重鎖定
+      clearSearchInput(false);
+
+      selectedEquipFilter = chip;
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      const activeEl = document.getElementById(`chip-${chip}`);
+      if (activeEl) activeEl.classList.add('active');
+      currentPage = 1;
+
+      syncBarHighlightFromFilter();
+      renderTable();
+    }
+
+    function syncBarHighlightFromFilter() {
+      const equipIndexMap = { 'HR2': 0, 'HR3': 1, 'CR5': 2 };
+      const mainEquip = selectedEquipFilter.split('_')[0];
+      if (equipIndexMap[mainEquip] !== undefined) {
+        barFocusState.datasetIndex = equipIndexMap[mainEquip];
+      } else if (selectedEquipFilter === 'ALL' || selectedEquipFilter === 'ALERT') {
+        barFocusState.datasetIndex = null;
+      }
+
+      if (selectedEquipFilter.includes('_')) {
+        const [eq, sub] = selectedEquipFilter.split('_');
+        paretoFocusIndex = `${eq}_${sub}`;
+      } else if (selectedEquipFilter === 'ALL' || selectedEquipFilter === 'ALERT') {
+        paretoFocusIndex = null;
+      } else {
+        paretoFocusIndex = selectedEquipFilter;
+      }
+
+      renderCharts();
+      renderParetoChart();
+    }
+
+    function resetBarHighlight() {
+      clearSearchInput(false);
+
+      barFocusState.datasetIndex = null;
+      barFocusState.index = null;
+      monthFilter = null;
+      pieFocusIndex = null;
+      paretoFocusIndex = null;
+      renderCharts();
+      renderParetoChart();
+      renderTable();
+      showToast('已還原長條圖與圖表焦點，並已清空檢索關鍵字', 'info');
+    }
+
+    function resetParetoHighlight() {
+      paretoFocusIndex = null;
+      renderParetoChart();
+      showToast('已還原帕累托圖全員飽和色彩', 'info');
+    }
+
+    function filterSubTank(equipCode, subKey) {
+      // 點擊子油箱時，自動清空關鍵字
+      clearSearchInput(false);
+
+      const fullChipKey = `${equipCode}_${subKey}`;
+      selectedEquipFilter = fullChipKey;
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      const activeEl = document.getElementById(`chip-${fullChipKey}`);
+      if (activeEl) activeEl.classList.add('active');
+      currentPage = 1;
+      
+      syncBarHighlightFromFilter();
+      renderTable();
+      focusMachineView(equipCode);
+      setPieEquip(equipCode);
+      showToast(`已篩選 ${equipCode} - ${subKey} 油箱數據 (關鍵字已清空)`, 'info');
+    }
+
+    function filterByEquip(code) {
+      clearSearchInput(false);
+      setFilterChip(code);
+      focusMachineView(code);
+      setPieEquip(code);
+      showToast(`已切換篩選 ${code} 設備全油箱資料 (關鍵字已清空)`, 'info');
+    }
+
+    function filterAll() {
+      clearSearchInput(false);
+      monthFilter = null;
+      resetBarHighlight();
+      setFilterChip('ALL');
+      showToast('已重設為全機組紀錄', 'info');
+    }
+
+    function filterCurrentMonth() {
+      clearSearchInput(false);
+      monthFilter = getLatestMonth();
+      barFocusState.index = null;
+      currentPage = 1;
+      renderTable();
+      renderCharts();
+      showToast(`已篩選當月份 (${monthFilter}) 紀錄 (關鍵字已清空)`, 'info');
+    }
+
+    function filterOnlyAlerts() {
+      clearSearchInput(false);
+      setFilterChip('ALERT');
+      showToast('已篩出所有單次超標紀錄', 'info');
+    }
+
+    function focusTopEquip() {
+      const equip = document.getElementById('kpi-top-equip').innerText.trim();
+      if (equip && equip !== '--') {
+        filterByEquip(equip);
+      }
+    }
+
+    function onSimulationChange(val) {
+      simulationAddLiters = parseFloat(val) || 0;
+      document.getElementById('sim-disp').innerText = `+${simulationAddLiters} L`;
+      renderKPIsAndThresholdBars();
+    }
+
+    function sortTableBy(key) {
+      if (sortConfig.key === key) {
+        sortConfig.order = sortConfig.order === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortConfig.key = key;
+        sortConfig.order = 'asc';
+      }
+      
+      ['date', 'equipCode', 'volume', 'inspector'].forEach(k => {
+        const span = document.getElementById(`sort-${k}`);
+        if (span) {
+          span.innerText = (k === sortConfig.key) ? (sortConfig.order === 'asc' ? '▲' : '▼') : '↕';
+        }
+      });
+
+      renderTable();
+    }
+
+    function changePageSize(size) {
+      pageSize = parseInt(size);
+      currentPage = 1;
+      renderTable();
+    }
+
+    function onTableRowClick(equipCode, rowIndex) {
+      selectedRowIndex = rowIndex;
+      focusMachineView(equipCode);
+      setPieEquip(equipCode);
+      renderTable();
+      showToast(`3D視角已導航至 ${equipCode}，並啟動注油波浪`, 'success');
+    }
+
+    function inlineEditNotes(rowIndex, oldNotes, tdElement) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = oldNotes;
+      input.className = 'w-full bg-slate-950 border border-cyan-400 rounded px-2 py-1 text-xs text-white';
+      tdElement.innerHTML = '';
+      tdElement.appendChild(input);
+      input.focus();
+
+      input.onblur = async () => {
+        const newNotes = input.value.trim();
+        tdElement.innerText = newNotes || "正常";
+        if (newNotes !== oldNotes) {
+          const target = records.find(r => Number(r.rowIndex) === Number(rowIndex));
+          if (target) {
+            target.notes = newNotes;
+            await sendRecordToBackend('edit', target, Number(rowIndex));
+            showToast('備註已直接同步寫入試算表！', 'success');
+          }
+        }
+      };
+
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') input.blur();
+      };
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+      tbody.innerHTML = '';
+
+      let filtered = records.filter(r => {
+        const matchesSearch = !search || 
+          (r.equipCode || '').toLowerCase().includes(search) ||
+          (r.inspector || '').toLowerCase().includes(search) ||
+          (r.part || '').toLowerCase().includes(search) ||
+          (r.notes || '').toLowerCase().includes(search) ||
+          (formatToInputDate(r.date) || '').toLowerCase().includes(search);
+        
+        let matchesEquip = true;
+        if (selectedEquipFilter === 'ALL') {
+          matchesEquip = true;
+        } else if (selectedEquipFilter === 'ALERT') {
+          matchesEquip = ((parseFloat(r.volume) || 0) > (parseFloat(r.singleLimit) || thresholds.singleLimit));
+        } else if (selectedEquipFilter.includes('_')) {
+          const [eq, sub] = selectedEquipFilter.split('_');
+          matchesEquip = ((r.equipCode || '').toUpperCase() === eq && getSubTankType(r) === sub);
+        } else {
+          matchesEquip = (r.equipCode === selectedEquipFilter);
+        }
+
+        const matchesMonth = monthFilter ? (getRecordMonth(r.date) === monthFilter) : true;
+
+        return matchesSearch && matchesEquip && matchesMonth;
+      });
+
+      filtered.sort((a, b) => {
+        let valA = a[sortConfig.key], valB = b[sortConfig.key];
+        if (sortConfig.key === 'volume' || sortConfig.key === 'singleLimit') {
+          valA = parseFloat(valA) || 0;
+          valB = parseFloat(valB) || 0;
+        }
+        if (valA < valB) return sortConfig.order === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.order === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      const totalCount = filtered.length;
+      const startIndex = (currentPage - 1) * pageSize;
+      const paginatedRecords = filtered.slice(startIndex, startIndex + pageSize);
+
+      document.getElementById('pageInfo').innerText = `顯示第 ${totalCount > 0 ? startIndex + 1 : 0} 到 ${Math.min(startIndex + pageSize, totalCount)} 筆，共 ${totalCount} 筆`;
+      renderPagination(totalCount);
+
+      if (paginatedRecords.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-400">查無相符紀錄 (若有搜尋字串，請點擊搜尋列「✕」清除)</td></tr>`;
+        return;
+      }
+
+      paginatedRecords.forEach(r => {
+        const volNum = parseFloat(r.volume) || 0;
+        const limitNum = parseFloat(r.singleLimit) || thresholds.singleLimit;
+        const isSingleAlert = volNum > limitNum;
+        const formattedDate = formatToInputDate(r.date);
+        const isSelected = selectedRowIndex === r.rowIndex;
+        const subType = getSubTankType(r);
+        const subBadge = getSubTankBadge(r.equipCode, subType);
+
+        const tr = document.createElement('tr');
+        tr.className = `hover:bg-white/10 transition border-b border-white/5 cursor-pointer ${isSelected ? 'table-row-selected' : ''}`;
+        
+        tr.onclick = (e) => {
+          if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'I' && e.target.tagName !== 'INPUT') {
+            onTableRowClick(r.equipCode, r.rowIndex);
+          }
+        };
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 text-slate-300">${formattedDate}</td>
+          <td class="py-3 px-4 font-bold">
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] ${
+              r.equipCode === 'HR2' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' :
+              r.equipCode === 'HR3' ? 'bg-pink-500/15 text-pink-400 border border-pink-500/30' :
+              'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+            }">${r.equipCode}</span>
+          </td>
+          <td class="py-3 px-4 text-slate-200 flex items-center gap-1.5 flex-wrap">
+            ${subBadge} <span>${r.part}</span>
+          </td>
+          <td class="py-3 px-4 text-cyan-300 text-[11px]">${r.oilSpec || TARGET_OIL}</td>
+          <td class="py-3 px-4 text-right font-cyber ${isSingleAlert ? 'text-rose-400 font-bold' : 'text-slate-100'}">${volNum.toFixed(1)}</td>
+          <td class="py-3 px-4 text-right font-cyber text-slate-400">${limitNum.toFixed(0)}</td>
+          <td class="py-3 px-4 text-center">
+            ${isSingleAlert 
+              ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 border border-rose-500/40 text-rose-300 animate-pulse"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> 超標</span>` 
+              : `<span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">正常</span>`
+            }
+          </td>
+          <td class="py-3 px-4 text-slate-300">${r.inspector}</td>
+          <td class="py-3 px-4 text-slate-300 hover:text-cyan-300 truncate max-w-[180px]" title="雙擊可直接就地修改" ondblclick="inlineEditNotes(${r.rowIndex}, '${r.notes.replace(/'/g, "\\'")}', this)">
+            ${r.notes}
+          </td>
+          <td class="py-3 px-4 text-center flex items-center justify-center gap-2">
+            <button onclick="editRecord(${r.rowIndex})" title="編輯此筆" class="text-slate-400 hover:text-amber-400 transition p-1">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+            </button>
+            <button onclick="deleteRecord(${r.rowIndex})" title="刪除紀錄" class="text-slate-400 hover:text-pink-500 transition p-1">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderPagination(totalCount) {
+      const container = document.getElementById('paginationControls');
+      container.innerHTML = '';
+      const totalPages = Math.ceil(totalCount / pageSize);
+      if (totalPages <= 1) return;
+
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30';
+      prevBtn.innerText = '‹ 上頁';
+      prevBtn.disabled = (currentPage === 1);
+      prevBtn.onclick = () => { currentPage--; renderTable(); };
+      container.appendChild(prevBtn);
+
+      for (let p = 1; p <= totalPages; p++) {
+        if (p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)) {
+          const btn = document.createElement('button');
+          btn.className = `px-2.5 py-1 rounded ${p === currentPage ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-400/40' : 'bg-white/5 hover:bg-white/10 text-slate-300'}`;
+          btn.innerText = p;
+          btn.onclick = () => { currentPage = p; renderTable(); };
+          container.appendChild(btn);
+        }
+      }
+
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30';
+      nextBtn.innerText = '下頁 ›';
+      nextBtn.disabled = (currentPage === totalPages);
+      nextBtn.onclick = () => { currentPage++; renderTable(); };
+      container.appendChild(nextBtn);
+    }
+
+    // ==========================================
+    // 2D 圖表渲染 (長條趨勢圖 + 環圈圖動態切換)
+    // ==========================================
+    function setTimeRange(range) {
+      timeRange = range;
+      ['1M', '3M', 'ALL'].forEach(r => {
+        const btn = document.getElementById(`tr-${r}`);
+        if (btn) {
+          if (r === range) {
+            btn.className = 'px-2.5 py-1 rounded-md bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-400/40';
+          } else {
+            btn.className = 'px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-slate-300';
+          }
+        }
+      });
+      renderCharts();
+      showToast(`已切換圖表時間跨度為：${range}`, 'info');
+    }
+
+    function setPieEquip(code) {
+      currentPieEquip = code;
+      pieFocusIndex = null;
+      ['ALL', 'HR2', 'HR3', 'CR5'].forEach(eq => {
+        const btn = document.getElementById(`pie-btn-${eq}`);
+        if (btn) {
+          if (eq === code) {
+            btn.className = eq === 'ALL' ? 'px-2 py-0.5 rounded font-bold bg-cyan-500/30 text-cyan-300 border border-cyan-400/40' :
+                           (eq === 'HR2' ? 'px-2 py-0.5 rounded font-bold bg-amber-500/30 text-amber-300 border border-amber-500/40' :
+                           (eq === 'HR3' ? 'px-2 py-0.5 rounded font-bold bg-pink-500/30 text-pink-300 border border-pink-500/40' :
+                                           'px-2 py-0.5 rounded font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'));
+          } else {
+            btn.className = 'px-2 py-0.5 rounded text-slate-300 hover:text-white';
+          }
+        }
+      });
+      renderPieChart();
+    }
+
+    function renderCharts() {
+      const equipKeys = ["HR2", "HR3", "CR5"];
+      const colors = {
+        "HR2": { 
+          activeBg: 'rgba(255, 184, 0, 0.95)', 
+          activeBorder: '#ffb800', 
+          dimBg: 'rgba(255, 184, 0, 0.12)', 
+          dimBorder: 'rgba(255, 184, 0, 0.22)' 
+        },
+        "HR3": { 
+          activeBg: 'rgba(255, 0, 85, 0.95)', 
+          activeBorder: '#ff0055', 
+          dimBg: 'rgba(255, 0, 85, 0.12)', 
+          dimBorder: 'rgba(255, 0, 85, 0.22)' 
+        },
+        "CR5": { 
+          activeBg: 'rgba(16, 185, 129, 0.95)', 
+          activeBorder: '#10b981', 
+          dimBg: 'rgba(16, 185, 129, 0.12)', 
+          dimBorder: 'rgba(16, 185, 129, 0.22)' 
+        }
+      };
+
+      let allMonths = [...new Set(records.map(r => getRecordMonth(r.date)))].filter(Boolean).sort();
+      if (allMonths.length === 0) allMonths = [formatToInputDate(new Date()).substring(0, 7)];
+
+      let displayMonths = allMonths;
+      if (timeRange === '1M') {
+        displayMonths = allMonths.slice(-1);
+      } else if (timeRange === '3M') {
+        displayMonths = allMonths.slice(-3);
+      }
+
+      const hasBarFocus = (barFocusState.datasetIndex !== null || barFocusState.index !== null);
+
+      const datasets = equipKeys.map((code, dsIdx) => {
+        const data = displayMonths.map(month => {
+          return records
+            .filter(r => (r.equipCode || "").toUpperCase() === code && getRecordMonth(r.date) === month)
+            .reduce((sum, r) => sum + (parseFloat(r.volume) || 0), 0);
+        });
+
+        const bgColors = [];
+        const borderColors = [];
+        const borderWidths = [];
+
+        displayMonths.forEach((m, mIdx) => {
+          let isFocused = true;
+          if (hasBarFocus) {
+            const matchDs = (barFocusState.datasetIndex === null || barFocusState.datasetIndex === dsIdx);
+            const matchIdx = (barFocusState.index === null || barFocusState.index === mIdx);
+            isFocused = matchDs && matchIdx;
+          }
+
+          if (isFocused) {
+            bgColors.push(colors[code].activeBg);
+            borderColors.push(colors[code].activeBorder);
+            borderWidths.push(hasBarFocus ? 2.5 : 1.5);
+          } else {
+            bgColors.push(colors[code].dimBg);
+            borderColors.push(colors[code].dimBorder);
+            borderWidths.push(1);
+          }
+        });
+
+        return {
+          label: code,
+          data: data,
+          backgroundColor: bgColors,
+          borderColor: borderColors,
+          borderWidth: borderWidths,
+          borderRadius: 6,
+          hoverBackgroundColor: colors[code].activeBg,
+          hoverBorderColor: '#ffffff',
+          hoverBorderWidth: 2
+        };
+      });
+
+      if (trendChartInstance) trendChartInstance.destroy();
+      const ctxTrend = document.getElementById('monthlyTrendChart').getContext('2d');
+      trendChartInstance = new Chart(ctxTrend, {
+        type: 'bar',
+        data: { labels: displayMonths, datasets: datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 350 },
+          onClick: (evt, activeEls) => {
+            if (activeEls.length > 0) {
+              const clickedEl = activeEls[0];
+              const dsIdx = clickedEl.datasetIndex;
+              const idx = clickedEl.index;
+              const clickedEquip = equipKeys[dsIdx];
+              const clickedMonth = displayMonths[idx];
+
+              if (barFocusState.datasetIndex === dsIdx && barFocusState.index === idx) {
+                setTimeout(() => {
+                  resetBarHighlight();
+                  showToast(`已取消長條焦點，恢復全機組全員色彩`, 'info');
+                }, 0);
+                return;
+              }
+
+              // 點選長條柱時清空文字檢索
+              clearSearchInput(false);
+
+              barFocusState.datasetIndex = dsIdx;
+              barFocusState.index = idx;
+              monthFilter = clickedMonth;
+
+              selectedEquipFilter = clickedEquip;
+              document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+              const activeChip = document.getElementById(`chip-${clickedEquip}`);
+              if (activeChip) activeChip.classList.add('active');
+
+              focusMachineView(clickedEquip);
+              setPieEquip(clickedEquip);
+
+              currentPage = 1;
+              setTimeout(() => {
+                renderCharts();
+                renderTable();
+                showToast(`長條焦點鎖定：【${clickedEquip}】${clickedMonth}，關鍵字已清空`, 'success');
+              }, 0);
+            } else {
+              if (barFocusState.datasetIndex !== null || barFocusState.index !== null) {
+                setTimeout(() => {
+                  resetBarHighlight();
+                }, 0);
+              }
+            }
+          },
+          plugins: {
+            legend: { 
+              position: 'top', 
+              labels: { 
+                color: '#e2e8f0', 
+                font: { family: 'Share Tech Mono', size: 12 },
+                generateLabels: (chart) => {
+                  const original = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                  return original.map(l => {
+                    if (barFocusState.datasetIndex !== null && barFocusState.datasetIndex !== l.datasetIndex) {
+                      l.fontColor = 'rgba(148, 163, 184, 0.4)';
+                      l.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                    }
+                    return l;
+                  });
+                }
+              },
+              onClick: (e, legendItem, legend) => {
+                const dsIdx = legendItem.datasetIndex;
+                const clickedEquip = equipKeys[dsIdx];
+                clearSearchInput(false);
+                if (barFocusState.datasetIndex === dsIdx && barFocusState.index === null) {
+                  barFocusState.datasetIndex = null;
+                } else {
+                  barFocusState.datasetIndex = dsIdx;
+                  barFocusState.index = null;
+                  focusMachineView(clickedEquip);
+                  setFilterChip(clickedEquip);
+                }
+                setTimeout(() => {
+                  renderCharts();
+                  renderTable();
+                }, 0);
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+              titleColor: '#00f0ff',
+              bodyColor: '#ffffff',
+              borderColor: 'rgba(0, 240, 255, 0.3)',
+              borderWidth: 1,
+              callbacks: {
+                label: (context) => {
+                  const val = context.raw || 0;
+                  return `  ${context.dataset.label}: ${val.toFixed(1)} L`;
+                },
+                afterLabel: () => '  (點擊長條柱切換焦點高亮與未選中灰暗)'
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { family: 'Share Tech Mono' } } },
+            y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { family: 'Share Tech Mono' } } }
+          }
+        }
+      });
+
+      renderPieChart();
+    }
+
+    function renderPieChart() {
+      const latestMonth = getLatestMonth();
+      let labels = [], data = [], baseColors = [], clickActions = [], caption = '';
+
+      if (currentPieEquip === 'ALL') {
+        const hr2Total = getCurrentMonthEquipVol('HR2');
+        const hr3Total = getCurrentMonthEquipVol('HR3');
+        const cr5Total = getCurrentMonthEquipVol('CR5');
+
+        labels = ['HR2 粗軋機', 'HR3 精軋機', 'CR5 冷軋機'];
+        data = [hr2Total, hr3Total, cr5Total];
+        baseColors = ['#ffb800', '#ff0055', '#10b981'];
+        clickActions = [
+          () => filterByEquip('HR2'),
+          () => filterByEquip('HR3'),
+          () => filterByEquip('CR5')
+        ];
+        caption = `當月三機組累積耗油比重 [總計: ${(hr2Total + hr3Total + cr5Total).toFixed(1)} L]`;
+      } else if (currentPieEquip === 'HR2') {
+        const s = getSubTankStats('HR2', latestMonth);
+        labels = ['NO.1 主油箱', 'NO.2 輔助', 'AGC 厚度', 'HGC 壓下'];
+        data = [s.NO1, s.NO2, s.AGC, s.HGC];
+        baseColors = ['#ffb800', '#fb923c', '#00f0ff', '#ff0055'];
+        clickActions = [
+          () => filterSubTank('HR2', 'NO1'),
+          () => filterSubTank('HR2', 'NO2'),
+          () => filterSubTank('HR2', 'AGC'),
+          () => filterSubTank('HR2', 'HGC')
+        ];
+        caption = `HR2 熱軋粗軋機 4 大油箱當月耗用比重 [總計: ${s.TOTAL.toFixed(1)} L]`;
+      } else if (currentPieEquip === 'HR3') {
+        const s = getSubTankStats('HR3', latestMonth);
+        labels = ['AUX 輔助油箱', 'Push-UP 壓下油箱'];
+        data = [s.AUX, s.PUSHUP];
+        baseColors = ['#ff0055', '#f43f5e'];
+        clickActions = [
+          () => filterSubTank('HR3', 'AUX'),
+          () => filterSubTank('HR3', 'PUSHUP')
+        ];
+        caption = `HR3 熱精軋機 2 大油箱當月耗用比重 [總計: ${s.TOTAL.toFixed(1)} L]`;
+      } else if (currentPieEquip === 'CR5') {
+        const s = getSubTankStats('CR5', latestMonth);
+        labels = ['AGC 厚度油箱', 'BENDING 彎輥', '中壓 液壓系統'];
+        data = [s.AGC, s.BENDING, s.MID];
+        baseColors = ['#10b981', '#06b6d4', '#a855f7'];
+        clickActions = [
+          () => filterSubTank('CR5', 'AGC'),
+          () => filterSubTank('CR5', 'BENDING'),
+          () => filterSubTank('CR5', 'MID')
+        ];
+        caption = `CR5 冷軋機 3 大油箱當月耗用比重 [總計: ${s.TOTAL.toFixed(1)} L]`;
+      }
+
+      const captionEl = document.getElementById('pieChartSubCaption');
+      if (captionEl) captionEl.innerText = caption;
+
+      const totalPieVal = data.reduce((a, b) => a + b, 0);
+      const badgesContainer = document.getElementById('pieSubTankBadges');
+      if (badgesContainer) {
+        badgesContainer.innerHTML = '';
+        labels.forEach((lbl, idx) => {
+          const val = data[idx] || 0;
+          const pct = totalPieVal > 0 ? ((val / totalPieVal) * 100).toFixed(1) : '0.0';
+          const color = baseColors[idx];
+          const isSelected = (pieFocusIndex === idx);
+          const isDimmed = (pieFocusIndex !== null && !isSelected);
+
+          const badge = document.createElement('button');
+          badge.className = `px-2 py-1 rounded-lg text-[10px] font-mono-tech flex items-center gap-1.5 transition cursor-pointer ${
+            isSelected 
+              ? 'ring-2 ring-cyan-400 bg-white/15 scale-105 shadow-[0_0_10px_rgba(0,240,255,0.3)]' 
+              : (isDimmed ? 'opacity-35 bg-white/5 hover:opacity-80' : 'bg-white/5 hover:bg-white/10')
+          }`;
+          badge.style.border = `1px solid ${color}${isSelected ? 'ff' : '66'}`;
+          badge.innerHTML = `
+            <span class="w-2 h-2 rounded-full inline-block" style="background-color: ${color}; box-shadow: 0 0 6px ${color}"></span>
+            <span class="text-white font-medium">${lbl}:</span>
+            <span style="color: ${color}" class="font-cyber font-bold">${val.toFixed(1)}L</span>
+            <span class="text-slate-400 text-[9px]">(${pct}%)</span>
+          `;
+          badge.onclick = () => {
+            clearSearchInput(false);
+            if (pieFocusIndex === idx) {
+              pieFocusIndex = null;
+            } else {
+              pieFocusIndex = idx;
+              const action = clickActions[idx];
+              if (action) action();
+            }
+            renderPieChart();
+          };
+          badgesContainer.appendChild(badge);
+        });
+      }
+
+      const bgColors = baseColors.map((hex, idx) => {
+        if (pieFocusIndex === null) return hex + 'd9';
+        if (pieFocusIndex === idx) return hex;
+        return hex + '26';
+      });
+
+      const borderColors = baseColors.map((hex, idx) => {
+        if (pieFocusIndex === null || pieFocusIndex === idx) return '#ffffff';
+        return hex + '33';
+      });
+
+      const borderWidths = baseColors.map((_, idx) => (pieFocusIndex === idx) ? 2.5 : 1.5);
+
+      if (ratioChartInstance) ratioChartInstance.destroy();
+      const ctxRatio = document.getElementById('equipRatioChart').getContext('2d');
+      ratioChartInstance = new Chart(ctxRatio, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: bgColors,
+            borderColor: borderColors,
+            borderWidth: borderWidths,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 350 },
+          onClick: (evt, activeEls) => {
+            if (activeEls.length > 0) {
+              const clickedIdx = activeEls[0].index;
+              setTimeout(() => {
+                clearSearchInput(false);
+                if (pieFocusIndex === clickedIdx) {
+                  pieFocusIndex = null;
+                  renderPieChart();
+                  showToast(`已解除扇區焦點，還原全比重顯示`, 'info');
+                } else {
+                  pieFocusIndex = clickedIdx;
+                  renderPieChart();
+                  const action = clickActions[clickedIdx];
+                  if (action) action();
+                  showToast(`鎖定焦點：【${labels[clickedIdx]}】，關鍵字已清空`, 'success');
+                }
+              }, 0);
+            } else {
+              if (pieFocusIndex !== null) {
+                setTimeout(() => {
+                  pieFocusIndex = null;
+                  renderPieChart();
+                }, 0);
+              }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+              titleColor: '#00f0ff',
+              bodyColor: '#ffffff',
+              borderColor: 'rgba(0, 240, 255, 0.3)',
+              borderWidth: 1,
+              callbacks: {
+                label: (context) => {
+                  const val = context.raw || 0;
+                  const pct = totalPieVal > 0 ? ((val / totalPieVal) * 100).toFixed(1) : 0;
+                  return `  ${context.label}: ${val.toFixed(1)} L (${pct}%)`;
+                },
+                afterLabel: () => '  (點擊扇區或下方標籤鎖定焦點 / 灰暗虛化)'
+              }
+            }
+          },
+          cutout: '68%'
+        }
+      });
+    }
+
+    // ==========================================================
+    // 1. 子油箱每日加油熱力圖 (年份與半年度 H1/H2 統計切換)
+    // ==========================================================
+    function getAvailableYears() {
+      const years = new Set();
+      records.forEach(r => {
+        const d = formatToInputDate(r.date);
+        if (d && d.length >= 4) {
+          const yr = parseInt(d.substring(0, 4));
+          if (!isNaN(yr)) years.add(yr);
+        }
+      });
+      const arr = Array.from(years).sort();
+      if (arr.length === 0) arr.push(new Date().getFullYear());
+      return arr;
+    }
+
+    function checkHalfHasRecords(year, half) {
+      const startM = half === 1 ? 1 : 7;
+      const endM = half === 1 ? 6 : 12;
+      return records.some(r => {
+        const d = formatToInputDate(r.date);
+        const y = parseInt(d.substring(0, 4));
+        const m = parseInt(d.substring(5, 7));
+        return y === year && m >= startM && m <= endM;
+      });
+    }
+
+    function initHeatmapControls() {
+      const years = getAvailableYears();
+      const yearContainer = document.getElementById('heatmap-year-selector');
+      if (!yearContainer) return;
+      yearContainer.innerHTML = '';
+
+      if (!heatmapSelectedYear || !years.includes(heatmapSelectedYear)) {
+        heatmapSelectedYear = years[years.length - 1];
+      }
+
+      years.forEach(yr => {
+        const btn = document.createElement('button');
+        const isActive = yr === heatmapSelectedYear;
+        btn.className = `px-2.5 py-1 rounded-lg transition font-cyber ${
+          isActive 
+            ? 'bg-cyan-500/30 text-cyan-300 font-bold border border-cyan-400/40 shadow-[0_0_8px_rgba(0,240,255,0.25)]' 
+            : 'text-slate-300 hover:text-white'
+        }`;
+        btn.innerText = `${yr}年`;
+        btn.onclick = () => setHeatmapYear(yr);
+        yearContainer.appendChild(btn);
+      });
+
+      const hasH1 = checkHalfHasRecords(heatmapSelectedYear, 1);
+      const hasH2 = checkHalfHasRecords(heatmapSelectedYear, 2);
+
+      if (heatmapSelectedHalf === 1 && !hasH1 && hasH2) {
+        heatmapSelectedHalf = 2;
+      } else if (heatmapSelectedHalf === 2 && !hasH2 && hasH1) {
+        heatmapSelectedHalf = 1;
+      }
+
+      updateHalfButtonsUI(hasH1, hasH2);
+    }
+
+    function updateHalfButtonsUI(hasH1, hasH2) {
+      const btn1 = document.getElementById('btn-half-1');
+      const btn2 = document.getElementById('btn-half-2');
+      if (!btn1 || !btn2) return;
+
+      const activeCls = 'bg-cyan-500/30 text-cyan-300 font-bold border border-cyan-400/40 shadow-[0_0_8px_rgba(0,240,255,0.25)]';
+      const normalCls = 'text-slate-300 hover:text-white';
+      const disabledCls = 'opacity-25 cursor-not-allowed pointer-events-none text-slate-500';
+
+      if (!hasH1) {
+        btn1.className = `px-2.5 py-1 rounded-lg ${disabledCls}`;
+        btn1.title = `${heatmapSelectedYear} 上半年無加油紀錄`;
+      } else {
+        btn1.className = `px-2.5 py-1 rounded-lg ${heatmapSelectedHalf === 1 ? activeCls : normalCls}`;
+        btn1.title = '';
+      }
+
+      if (!hasH2) {
+        btn2.className = `px-2.5 py-1 rounded-lg ${disabledCls}`;
+        btn2.title = `${heatmapSelectedYear} 下半年無加油紀錄`;
+      } else {
+        btn2.className = `px-2.5 py-1 rounded-lg ${heatmapSelectedHalf === 2 ? activeCls : normalCls}`;
+        btn2.title = '';
+      }
+    }
+
+    function setHeatmapYear(yr) {
+      heatmapSelectedYear = yr;
+      initHeatmapControls();
+      renderHeatmap();
+      showToast(`已切換熱力圖統計年份：${yr} 年`, 'info');
+    }
+
+    function setHeatmapHalf(half) {
+      heatmapSelectedHalf = half;
+      const hasH1 = checkHalfHasRecords(heatmapSelectedYear, 1);
+      const hasH2 = checkHalfHasRecords(heatmapSelectedYear, 2);
+      updateHalfButtonsUI(hasH1, hasH2);
+      renderHeatmap();
+      showToast(`已切換至 ${heatmapSelectedYear} 年 ${half === 1 ? '上半年 (H1)' : '下半年 (H2)'}`, 'info');
+    }
+
+    function getDaysInHalfYear(year, half) {
+      const startMonth = half === 1 ? 0 : 6;
+      const endMonth = half === 1 ? 5 : 11;
+      const dateList = [];
+
+      for (let m = startMonth; m <= endMonth; m++) {
+        const daysInMonth = new Date(year, m + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+          const mStr = String(m + 1).padStart(2, '0');
+          const dStr = String(d).padStart(2, '0');
+          dateList.push({
+            dateStr: `${year}-${mStr}-${dStr}`,
+            month: m + 1,
+            day: d
+          });
+        }
+      }
+      return dateList;
+    }
+
+    function renderHeatmap() {
+      const container = document.getElementById('heatmap-container');
+      const periodLabel = document.getElementById('heatmap-period-label');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (!heatmapSelectedYear) {
+        const years = getAvailableYears();
+        heatmapSelectedYear = years[years.length - 1];
+      }
+
+      const halfName = heatmapSelectedHalf === 1 ? '上半年 (01月 ~ 06月)' : '下半年 (07月 ~ 12月)';
+      if (periodLabel) {
+        periodLabel.innerText = `目前檢視週期：${heatmapSelectedYear} 年 ${halfName}`;
+      }
+
+      const dateList = getDaysInHalfYear(heatmapSelectedYear, heatmapSelectedHalf);
+
+      const dailyMap = {};
+      records.forEach(r => {
+        const sub = getSubTankType(r);
+        const eq = (r.equipCode || '').toUpperCase();
+        const d = formatToInputDate(r.date);
+        const k = `${eq}_${sub}_${d}`;
+        dailyMap[k] = (dailyMap[k] || 0) + (parseFloat(r.volume) || 0);
+      });
+
+      const headerRow = document.createElement('div');
+      headerRow.className = 'flex items-center gap-1 mb-1 text-[10px] text-slate-400 select-none';
+      const labelSpacer = document.createElement('div');
+      labelSpacer.className = 'w-36 text-right pr-3 font-bold text-slate-400';
+      labelSpacer.innerText = '子油箱 \\ 月份';
+      headerRow.appendChild(labelSpacer);
+
+      const daysGridHeader = document.createElement('div');
+      daysGridHeader.className = 'flex gap-[2px] items-center';
+
+      let lastRenderedMonth = null;
+      dateList.forEach((dt) => {
+        const span = document.createElement('span');
+        span.className = 'w-[13px] text-[9px] text-center overflow-visible whitespace-nowrap';
+        if (dt.month !== lastRenderedMonth && dt.day === 1) {
+          span.innerText = `${String(dt.month).padStart(2, '0')}月`;
+          span.className += ' font-bold text-cyan-300';
+          lastRenderedMonth = dt.month;
+        } else {
+          span.innerText = '';
+        }
+        daysGridHeader.appendChild(span);
+      });
+      headerRow.appendChild(daysGridHeader);
+      container.appendChild(headerRow);
+
+      SUB_SYSTEMS.forEach(sys => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-1 hover:bg-white/5 py-0.5 rounded transition';
+
+        const rowLabel = document.createElement('div');
+        rowLabel.className = 'w-36 text-right pr-3 truncate cursor-pointer hover:text-cyan-300 font-medium text-[11px]';
+        rowLabel.title = `點擊篩選 ${sys.label}`;
+        rowLabel.innerHTML = `<span style="color:${sys.color}">●</span> ${sys.label}`;
+        rowLabel.onclick = () => filterSubTank(sys.equip, sys.sub);
+        row.appendChild(rowLabel);
+
+        const cellsContainer = document.createElement('div');
+        cellsContainer.className = 'flex gap-[2px] items-center';
+
+        dateList.forEach(dt => {
+          const k = `${sys.equip}_${sys.sub}_${dt.dateStr}`;
+          const vol = dailyMap[k] || 0;
+
+          const cell = document.createElement('div');
+          cell.className = 'heatmap-cell';
+
+          if (vol === 0) {
+            cell.style.backgroundColor = 'rgba(15, 23, 42, 0.7)';
+            cell.style.border = '1px solid rgba(255, 255, 255, 0.05)';
+          } else if (vol <= 50) {
+            cell.style.backgroundColor = 'rgba(6, 78, 59, 0.85)';
+            cell.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+          } else if (vol <= 100) {
+            cell.style.backgroundColor = 'rgba(16, 185, 129, 0.9)';
+            cell.style.boxShadow = '0 0 4px rgba(16, 185, 129, 0.4)';
+          } else if (vol <= 200) {
+            cell.style.backgroundColor = 'rgba(245, 158, 11, 0.95)';
+            cell.style.boxShadow = '0 0 6px rgba(245, 158, 11, 0.6)';
+          } else {
+            cell.style.backgroundColor = '#ff0055';
+            cell.style.boxShadow = '0 0 8px #ff0055';
+          }
+
+          cell.title = `${sys.label}\n日期: ${dt.dateStr}\n加油量: ${vol.toFixed(1)} L\n(點擊聯動篩選)`;
+          cell.onclick = () => {
+            document.getElementById('searchInput').value = dt.dateStr;
+            filterSubTank(sys.equip, sys.sub);
+            showToast(`已篩選 ${dt.dateStr} 【${sys.label}】之補油明細`, 'info');
+          };
+
+          cellsContainer.appendChild(cell);
+        });
+
+        row.appendChild(cellsContainer);
+        container.appendChild(row);
+      });
+    }
+
+    // ==========================================================
+    // 2. 單次加油量分佈散佈圖 (Scatter Outlier Analysis)
+    // ==========================================================
+    function renderScatterChart() {
+      const ctx = document.getElementById('scatterOutlierChart');
+      if (!ctx) return;
+
+      const scatterData = records.map(r => {
+        const v = parseFloat(r.volume) || 0;
+        const dObj = new Date(r.date);
+        const noteStr = (r.notes || '') + ' ' + (r.part || '');
+        const isEmergency = /爆管|破裂|微漏|漏油|緊急|突發|高溫/i.test(noteStr);
+
+        return {
+          x: dObj.getTime(),
+          y: v,
+          recordRef: r,
+          isOutlier: v > 200 || v > thresholds.singleLimit,
+          isEmergency: isEmergency
+        };
+      });
+
+      if (scatterChartInstance) scatterChartInstance.destroy();
+
+      scatterChartInstance = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: '單次加油紀錄',
+              data: scatterData,
+              backgroundColor: (context) => {
+                const item = context.raw;
+                if (!item) return '#00f0ff';
+                if (item.y > thresholds.singleLimit || item.y > 200) return '#ff0055';
+                if (item.y >= 100) return '#ffb800';
+                return '#10b981';
+              },
+              borderColor: (context) => {
+                const item = context.raw;
+                if (!item) return '#ffffff';
+                return item.isEmergency ? '#ff0055' : 'rgba(255, 255, 255, 0.7)';
+              },
+              borderWidth: (context) => {
+                const item = context.raw;
+                return (item && item.isEmergency) ? 2.5 : 1;
+              },
+              pointRadius: (context) => {
+                const item = context.raw;
+                if (!item) return 4;
+                if (item.y > 300) return 9;
+                if (item.y > 150) return 6.5;
+                return 4;
+              },
+              pointHoverRadius: 11
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 400 },
+          onClick: (evt, activeEls) => {
+            if (activeEls.length > 0) {
+              const clickedItem = scatterData[activeEls[0].index];
+              if (clickedItem && clickedItem.recordRef) {
+                openOutlierModal(clickedItem.recordRef);
+              }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  const item = context.raw;
+                  const r = item.recordRef;
+                  return [
+                    `設備: ${r.equipCode} (${r.part})`,
+                    `加油量: ${r.volume} L (單次上限: ${r.singleLimit || thresholds.singleLimit} L)`,
+                    `巡檢員: ${r.inspector}`,
+                    `備註: ${r.notes || '正常'}`
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: {
+                color: '#94a3b8',
+                font: { family: 'Share Tech Mono', size: 10 },
+                callback: (val) => {
+                  const d = new Date(val);
+                  return `${d.getMonth() + 1}/${d.getDate()}`;
+                }
+              }
+            },
+            y: {
+              min: 0,
+              suggestedMax: Math.max(450, thresholds.singleLimit + 50),
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: {
+                color: '#94a3b8',
+                font: { family: 'Share Tech Mono' }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function openOutlierModal(record) {
+      document.getElementById('outlier-date').innerText = formatToInputDate(record.date);
+      document.getElementById('outlier-inspector').innerText = record.inspector || '未登錄';
+      document.getElementById('outlier-part').innerText = `${record.equipCode} - ${record.part}`;
+      
+      const v = parseFloat(record.volume) || 0;
+      const lim = parseFloat(record.singleLimit) || thresholds.singleLimit;
+      document.getElementById('outlier-volume').innerText = `${v.toFixed(1)} L (基準 ${lim} L)`;
+
+      const badge = document.getElementById('outlier-severity-badge');
+      if (v > lim) {
+        badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse';
+        badge.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> 單次嚴重超標異常 (&gt; ${lim}L)`;
+      } else if (v > 200) {
+        badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40';
+        badge.innerHTML = `<i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> 大量補充/排查事件 (&gt; 200L)`;
+      } else {
+        badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        badge.innerHTML = `<i data-lucide="check-circle" class="w-3.5 h-3.5"></i> 常規加注範圍`;
+      }
+
+      document.getElementById('outlier-notes').innerText = record.notes || '現場正常補油無異常備註。';
+
+      const btnFilter = document.getElementById('btn-outlier-filter');
+      btnFilter.onclick = () => {
+        closeOutlierModal();
+        clearSearchInput(false);
+        document.getElementById('searchInput').value = record.inspector || '';
+        focusMachineView(record.equipCode);
+        onTableRowClick(record.equipCode, record.rowIndex);
+      };
+
+      document.getElementById('outlierModal').classList.add('active');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeOutlierModal() {
+      document.getElementById('outlierModal').classList.remove('active');
+    }
+
+    // ==========================================================
+    // 3. 軋延設備油耗帕累托圖 (80/20 Pareto Chart)
+    // ==========================================================
+    function renderParetoChart() {
+      const ctx = document.getElementById('paretoChart');
+      if (!ctx) return;
+
+      const sums = SUB_SYSTEMS.map(sys => {
+        const total = records
+          .filter(r => (r.equipCode || '').toUpperCase() === sys.equip && getSubTankType(r) === sys.sub)
+          .reduce((sum, r) => sum + (parseFloat(r.volume) || 0), 0);
+        return {
+          label: `${sys.equip} ${sys.sub}`,
+          fullLabel: sys.label,
+          total: total,
+          color: sys.color,
+          equip: sys.equip,
+          sub: sys.sub,
+          key: `${sys.equip}_${sys.sub}`
+        };
+      });
+
+      sums.sort((a, b) => b.total - a.total);
+
+      const grandTotal = sums.reduce((acc, cur) => acc + cur.total, 0) || 1;
+      let runningSum = 0;
+      const paretoPercentages = sums.map(s => {
+        runningSum += s.total;
+        return Math.min(Math.round((runningSum / grandTotal) * 1000) / 10, 100);
+      });
+
+      const barBackgrounds = [];
+      const barBorders = [];
+      const barBorderWidths = [];
+
+      sums.forEach(s => {
+        let isFocused = true;
+        if (paretoFocusIndex !== null) {
+          if (paretoFocusIndex === s.key || paretoFocusIndex === s.equip) {
+            isFocused = true;
+          } else {
+            isFocused = false;
+          }
+        }
+
+        if (isFocused) {
+          barBackgrounds.push(s.color + 'e6');
+          barBorders.push(s.color);
+          barBorderWidths.push(paretoFocusIndex !== null ? 2.5 : 1.5);
+        } else {
+          barBackgrounds.push(s.color + '22');
+          barBorders.push(s.color + '33');
+          barBorderWidths.push(1);
+        }
+      });
+
+      if (paretoChartInstance) paretoChartInstance.destroy();
+
+      paretoChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: sums.map(s => s.label),
+          datasets: [
+            {
+              type: 'line',
+              label: '累計佔比 (%)',
+              data: paretoPercentages,
+              borderColor: '#00f0ff',
+              backgroundColor: 'rgba(0, 240, 255, 0.15)',
+              borderWidth: 2.5,
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#00f0ff',
+              pointRadius: 4,
+              yAxisID: 'yPercentage'
+            },
+            {
+              type: 'bar',
+              label: '累計加油量 (L)',
+              data: sums.map(s => s.total),
+              backgroundColor: barBackgrounds,
+              borderColor: barBorders,
+              borderWidth: barBorderWidths,
+              borderRadius: 6,
+              hoverBackgroundColor: sums.map(s => s.color),
+              hoverBorderColor: '#ffffff',
+              hoverBorderWidth: 2,
+              yAxisID: 'yVolume'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 350 },
+          onClick: (evt, activeEls) => {
+            if (activeEls.length > 0) {
+              const clickedIdx = activeEls[0].index;
+              const clickedItem = sums[clickedIdx];
+
+              setTimeout(() => {
+                clearSearchInput(false);
+                if (paretoFocusIndex === clickedItem.key) {
+                  paretoFocusIndex = null;
+                  renderParetoChart();
+                  showToast(`已取消帕累托焦點，恢復全員飽和`, 'info');
+                } else {
+                  paretoFocusIndex = clickedItem.key;
+                  filterSubTank(clickedItem.equip, clickedItem.sub);
+                  renderParetoChart();
+                  showToast(`帕累托焦點：【${clickedItem.fullLabel}】，關鍵字已清空`, 'success');
+                }
+              }, 0);
+            } else {
+              if (paretoFocusIndex !== null) {
+                setTimeout(() => {
+                  paretoFocusIndex = null;
+                  renderParetoChart();
+                }, 0);
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: '#e2e8f0', font: { family: 'Share Tech Mono', size: 11 } }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+              titleColor: '#00f0ff',
+              bodyColor: '#ffffff',
+              borderColor: 'rgba(0, 240, 255, 0.3)',
+              borderWidth: 1,
+              callbacks: {
+                title: (context) => sums[context[0].dataIndex].fullLabel,
+                afterLabel: () => '  (點擊長條柱切換焦點高亮 / 灰暗虛化)'
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#94a3b8', font: { family: 'Share Tech Mono', size: 10 } }
+            },
+            yVolume: {
+              type: 'linear',
+              position: 'left',
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#ffb800', font: { family: 'Share Tech Mono' } },
+              title: { display: true, text: '公升 (L)', color: '#ffb800', font: { size: 10 } }
+            },
+            yPercentage: {
+              type: 'linear',
+              position: 'right',
+              min: 0,
+              max: 100,
+              grid: { display: false },
+              ticks: {
+                color: '#00f0ff',
+                font: { family: 'Share Tech Mono' },
+                callback: (val) => `${val}%`
+              },
+              title: { display: true, text: '累計比率 (%)', color: '#00f0ff', font: { size: 10 } }
+            }
+          }
+        }
+      });
+    }
+
+    // ==========================================
+    // 雲端 API 與資料庫同步操作
+    // ==========================================
+    async function fetchRecordsFromBackend() {
+      if (!API_URL) {
+        document.getElementById('sync-status').innerHTML = `
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span> 尚未設定 Google 試算表網址 (請點右上角設定)
+        `;
+        document.getElementById('sync-status').className = "text-amber-400 flex items-center gap-1";
+        
+        let cached = JSON.parse(localStorage.getItem('cyber_oil_records_cache')) || [];
+        if (cached.length === 0) {
+          records = generateDemoRecords();
+        } else {
+          records = cached;
+        }
+        updateAll();
+        return;
+      }
+
+      try {
+        const response = await fetch(API_URL, { 
+          method: 'GET', 
+          cache: 'no-cache',
+          redirect: 'follow'
+        });
+
+        if (!response.ok) throw new Error("HTTP 異常: " + response.status);
+        const data = await response.json();
+        
+        if (Array.isArray(data)) {
+          const normalized = data.map(r => ({
+            ...r,
+            date: formatToInputDate(r.date),
+            volume: Number(r.volume) || 0,
+            singleLimit: Number(r.singleLimit) || thresholds.singleLimit
+          }));
+
+          if (JSON.stringify(records) !== JSON.stringify(normalized)) {
+            records = normalized;
+            updateAll();
+            showToast('雲端試算表已完成最新資料同步！', 'success');
+          }
+
+          document.getElementById('sync-status').innerHTML = `
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 雲端試算表連線正常 (最新同步: ${new Date().toLocaleTimeString()})
+          `;
+          document.getElementById('sync-status').className = "text-emerald-400 flex items-center gap-1.5 font-medium";
+        }
+      } catch (err) {
+        console.warn("無法連線 Google 試算表", err);
+        document.getElementById('sync-status').innerHTML = `
+          <span class="w-2 h-2 rounded-full bg-rose-400"></span> 雲端同步失敗 (使用快取資料)
+        `;
+        document.getElementById('sync-status').className = "text-rose-400 flex items-center gap-1.5";
+        
+        if (records.length === 0) {
+          records = JSON.parse(localStorage.getItem('cyber_oil_records_cache')) || [];
+          updateAll();
+        }
+      }
+    }
+
+    async function sendRecordToBackend(actionType, recordData, rowIndex = null) {
+      if (!API_URL) {
+        showToast('請先點擊右上角「試算表網址設定」填入 Google Apps Script URL！', 'error');
+        return;
+      }
+
+      try {
+        document.getElementById('sync-status').innerHTML = `
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> 正在寫入 Google 試算表...
+        `;
+
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: actionType,
+            data: recordData,
+            rowIndex: rowIndex
+          }),
+          redirect: 'follow'
+        });
+
+        setTimeout(async () => {
+          await fetchRecordsFromBackend();
+          startPollingTimer();
+        }, 1200);
+
+      } catch (e) {
+        showToast('寫入 Google 試算表失敗，請確認 Apps Script 權限設為「所有人」！', 'error');
+      }
+    }
+
+    function generateDemoRecords() {
+      const demo = [];
+      const inspectors = ['何嘉峻', '林建宏', '陳志強', '張偉德', '黃俊銘'];
+      const partsConfig = [
+        { code: 'HR2', part: 'HR2 NO.1 液壓油箱', base: 45, variance: 80 },
+        { code: 'HR2', part: 'HR2 NO.2 液壓油箱', base: 30, variance: 60 },
+        { code: 'HR2', part: 'HR2 AGC 厚度控制油箱', base: 60, variance: 180 },
+        { code: 'HR2', part: 'HR2 HGC 液壓壓下油箱', base: 20, variance: 50 },
+        { code: 'HR3', part: 'HR3 AUX 輔助油箱', base: 40, variance: 90 },
+        { code: 'HR3', part: 'HR3 Push-UP 壓下油箱', base: 70, variance: 210 },
+        { code: 'CR5', part: 'CR5 AGC 厚度控制油箱', base: 25, variance: 70 },
+        { code: 'CR5', part: 'CR5 BENDING 彎輥油箱', base: 15, variance: 40 },
+        { code: 'CR5', part: 'CR5 中壓 液壓油箱', base: 35, variance: 90 }
+      ];
+
+      const now = new Date();
+      let rowIndex = 2;
+
+      for (let i = 180; i >= 0; i--) {
+        const curDate = new Date(now);
+        curDate.setDate(curDate.getDate() - i);
+        const dateStr = formatToInputDate(curDate);
+
+        const eventCount = (i % 3 === 0) ? 2 : ((i % 5 === 0) ? 3 : (Math.random() > 0.4 ? 1 : 0));
+        for (let j = 0; j < eventCount; j++) {
+          const cfg = partsConfig[Math.floor(Math.random() * partsConfig.length)];
+          let vol = cfg.base + Math.random() * cfg.variance;
+          let note = '常規巡檢補充油位';
+
+          if (i === 12 && cfg.part.includes('AGC')) {
+            vol = 425;
+            note = '【緊急】伺服閥台高壓管接頭突發破裂大漏，已緊急更換O型環並清槽回充';
+          } else if (i === 45 && cfg.part.includes('Push-UP')) {
+            vol = 380;
+            note = '【突發】壓下缸軸封微裂造成洩漏，班中大補油，待排定歲修檢修';
+          } else if (vol > 160) {
+            note = '排查管路接頭微滲，補足油箱安全液位上限';
+          }
+
+          demo.push({
+            rowIndex: rowIndex++,
+            date: dateStr,
+            equipCode: cfg.code,
+            part: cfg.part,
+            oilSpec: TARGET_OIL,
+            volume: Math.round(vol * 10) / 10,
+            singleLimit: 400,
+            inspector: inspectors[Math.floor(Math.random() * inspectors.length)],
+            notes: note
+          });
+        }
+      }
+      return demo;
+    }
+
+    function editRecord(rowIndex) {
+      const target = records.find(r => Number(r.rowIndex) === Number(rowIndex));
+      if (!target) return;
+
+      document.getElementById('form-edit-row').value = target.rowIndex;
+      document.getElementById('form-date').value = formatToInputDate(target.date);
+      document.getElementById('form-equip-code').value = target.equipCode;
+
+      const partSelect = document.getElementById('form-part-select');
+      const customInput = document.getElementById('form-part-custom');
+
+      let foundOption = false;
+      for (let i = 0; i < partSelect.options.length; i++) {
+        if (partSelect.options[i].value === target.part) {
+          partSelect.selectedIndex = i;
+          foundOption = true;
+          break;
+        }
+      }
+
+      if (foundOption) {
+        customInput.classList.add('hidden');
+        customInput.required = false;
+      } else {
+        partSelect.value = 'CUSTOM';
+        customInput.classList.remove('hidden');
+        customInput.value = target.part;
+        customInput.required = true;
+      }
+
+      document.getElementById('form-volume').value = target.volume;
+      document.getElementById('form-single-limit').value = target.singleLimit || thresholds.singleLimit;
+      document.getElementById('form-inspector').value = target.inspector;
+      document.getElementById('form-notes').value = target.notes;
+
+      document.getElementById('modal-title').innerHTML = `
+        <div class="glass-icon-badge w-6 h-6 border-amber-400/20"><i data-lucide="edit-3" class="w-3.5 h-3.5 text-amber-400"></i></div>
+        編輯設備加油紀錄 // EDIT EVENT
+      `;
+      document.getElementById('btn-submit-form').innerText = "儲存修改並寫入試算表";
+      document.getElementById('addModal').classList.add('active');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const editRow = document.getElementById('form-edit-row').value;
+
+      const partSelectVal = document.getElementById('form-part-select').value;
+      const finalPart = partSelectVal === 'CUSTOM' ? document.getElementById('form-part-custom').value.trim() : partSelectVal;
+
+      const recordData = {
+        date: formatToInputDate(document.getElementById('form-date').value),
+        equipCode: document.getElementById('form-equip-code').value,
+        part: finalPart,
+        oilSpec: TARGET_OIL,
+        volume: parseFloat(document.getElementById('form-volume').value),
+        singleLimit: parseFloat(document.getElementById('form-single-limit').value) || thresholds.singleLimit,
+        inspector: document.getElementById('form-inspector').value,
+        notes: document.getElementById('form-notes').value || "正常"
+      };
+
+      closeAddModal();
+
+      if (editRow) {
+        await sendRecordToBackend('edit', recordData, Number(editRow));
+      } else {
+        await sendRecordToBackend('add', recordData);
+      }
+    }
+
+    async function deleteRecord(rowIndex) {
+      if (confirm("確認從 Google 試算表中刪除此筆加油紀錄？")) {
+        await sendRecordToBackend('delete', null, Number(rowIndex));
+      }
+    }
+
+    function exportCSV() {
+      const headers = ["加油日期", "設備代碼", "潤滑部位(油箱)", "油品規格", "本次加油量(L)", "單次上限基準(L)", "巡檢人員", "現場狀況備註"];
+      const rows = records.map(r => [
+        formatToInputDate(r.date), r.equipCode, r.part, TARGET_OIL, r.volume, r.singleLimit || thresholds.singleLimit, r.inspector, r.notes
+      ]);
+      let csvContent = "\uFEFF" + [headers.join(","), ...rows.map(e => e.map(x => `"${x}"`).join(","))].join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `設備加油雲端報表_${formatToInputDate(new Date())}.csv`;
+      link.click();
+      showToast('已匯出 CSV 報表！', 'success');
+    }
+  </script>
+</body>
+</html>
